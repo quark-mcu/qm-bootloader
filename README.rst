@@ -70,8 +70,8 @@ All Documentation about the bootloader can be found in the doc folder:
 
 - `Bootloader resources <doc/boot_resources.rst>`__
 - `Bootloader flow      <doc/boot_flow.rst>`__
-- `DFU information      <doc/dfu.rst>`__
-- `FM information       <doc/fw-manager>`__
+- `Firmware Manager User Guide`_
+- `Firmware Manager Overview`_
 
 Building
 ********
@@ -98,7 +98,7 @@ variable must point to the QMSI folder, for instance:
 If such a variable is not defined, the bootloader expects QMSI folder to be
 named ``qmsi`` and be a sibling folder of the bootloader one.
 
-To use the "make flash" command ,the $QM_BOOTLOADER_DIR enviroment variable
+To use the "make flash" command ,the $QM_BOOTLOADER_DIR environment variable
 should be set.
 
 ``export QM_BOOTLOADER_DIR=$HOME/bootloader``
@@ -138,8 +138,8 @@ bootloader,
 
 By default, firmware management mode is not enabled.
 
-More info on building and flashing an application using the firmware managment
-mode can be found in the `fw-manager-user-guide <doc/fw-manager-user-guide.rst>`__
+More info on building and flashing an application using the firmware management
+mode can be found in the `Firmware Manager User Guide`_.
 
 Flashing
 ========
@@ -147,7 +147,7 @@ Flashing
 The bootloader must be flashed on the OTP ROM flash region.
 
 For flashing the board OpenOCD must be used. You can optionally use gdb
-as a frontend for OpenOCD as described below.
+as a front-end for OpenOCD as described below.
 
 Assuming the toolchain was unpacked into *$HOME/issm_2016/*, this can be
 done with:
@@ -162,8 +162,8 @@ For SE C1000, start OpenOCD with the following command:
 
 ``$ ./bin/openocd -f scripts/board/quark_se_onboard.cfg``
 
-Create a new terminal session at this point and set environment variables accordingly.
-Then launch a GDB session using:
+Create a new terminal session at this point and set environment variables
+accordingly.  Then launch a GDB session using:
 
 ``$ gdb``
 
@@ -178,9 +178,12 @@ For D2000, the following command is used to flash the bootloader to the device:
 ``(gdb) monitor load_image $PATH_TO_QM_BOOTLOADER/build/release/quark_d2000/rom/quark_d2000_rom.bin 0x0``
 
 
-For SE C1000, the following command is used to flash the bootloader to the device:
+For SE C1000, the following command is used to flash the bootloader to the
+device:
 
 ``(gdb) monitor load_image $PATH_TO_QM_BOOTLOADER/build/release/quark_se/rom/quark_se_rom.bin 0xFFFFE000``
 
-Change Log
-**********
+
+.. Links
+.. _`Firmware Manager User Guide`: doc/fw-manager-user-guide.rst
+.. _`Firmware Manager Overview`: doc/fw-manager-overview.rst

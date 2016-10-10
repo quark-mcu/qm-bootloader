@@ -6,40 +6,39 @@ Quark Firmware Management
 Overview
 ********
 
-The fw-manager module of the Quark Bootloader enables the firmware
-management mode, an alternative mode to the normal operation mode whereby the
-device is ready to serve system management requests from an external Host. For
-the whole duration of the Firmware Management mode, the MCU does not run its
-application and only serves management requests from an external host.
+The *fw-manager* module of the Quark Bootloader enables the Firmware Management
+(FM) mode, an alternative mode to the normal operation mode whereby the device
+is ready to serve system management requests from an external host.  For the
+whole duration of FM mode, the MCU does not run its application and only serves
+management requests from an external host.
 
-The firmware management mode provides the following services to the users:
+FM mode provides the following services to the users:
 
 * System information retrieval (SoC type, application version, security
   capability, etc.)
 * Application firmware update
 * Application firmware erase (erase of all the application code in flash)
 
-The MCU enters the FM mode only after an explicit request from the host. The
+The MCU enters FM mode only after an explicit request from the host. The
 mechanism used by the host to signal an Enter-FM request to the device depends
 on the specific communication link used for firmware management. In case of UART
 the host (or the user) must ground a specific pin and reset the device manually.
 
 A special case is when there is no application running on the device (i.e.,
-there is not any valid application firmware). In such a case, the bootloader
-puts the device into sleep mode.
+there is no valid application firmware). In such a case, the bootloader puts
+the device into sleep mode.
 
-When the host has completed its firmware management tasks, it can make the device
-exit FM mode by issuing a reset request. The device reboots and enter
+When the host has completed its firmware management tasks, it can make the
+device exit FM mode by issuing a reset request. The device reboots and enters
 application mode or sleep mode if no application is present.
 
 Protocol stack
 **************
 
-Even if the FM functionality is currently available via UART only, it has been
-designed to support different kinds of communication link. To this end, a
-single common protocol stack for performing FM operations has been defined. The
-core of such a stack is the (USB) `DFU protocol`_, a standard for
-performing firmware upgrades on USB devices.
+FM functionality has been designed to support different kinds of communication
+links. To this end, a single common protocol stack for performing FM operations
+has been defined. The core of such a stack is the (USB) `DFU protocol`_, a
+standard for performing firmware upgrades on USB devices.
 
 In order to use DFU also on UART (and other non-USB transports), a generic
 adaptation layer for non USB-transports, the *Quark DFU Adaptation (QDA)
@@ -53,22 +52,22 @@ can support authentication while maintaining compatibility with plain DFU
 (i.e., a signed firmware can potentially be downloaded and authenticated by the
 device using any standard DFU tool).
 
-The proposed FM protocol stack is the following.
+The current FM protocol stack is the following.
 
-+-----------------+-------------------+-------------+------------+
-|   Layer         |        USB        |     UART    |    SPI     |
-+=================+===================+=============+============+
-| **DFU payload** |           QFM Protocol / QFU Image           |
-+-----------------+-------------------+--------------------------+
-| **DFU flavor**  |      USB/DFU      |             QDA          |
-+-----------------+-------------------+--------------------------+
-| **Transport**   |        USB        |         XMODEM-CRC       |
-+-----------------+-------------------+-------------+------------+
-| **Driver**      | USB Device Driver | UART driver | SPI driver |
-+-----------------+-------------------+-------------+------------+
++-----------------+-------------------+-------------+
+|   Layer         |        USB        |     UART    |
++=================+===================+=============+
+| **DFU payload** |    QFM Protocol / QFU Image     |
++-----------------+-------------------+-------------+
+| **DFU flavor**  |      USB/DFU      |    QDA      |
++-----------------+-------------------+-------------+
+| **Transport**   |        USB        | XMODEM-CRC  |
++-----------------+-------------------+-------------+
+| **Driver**      | USB Device Driver | UART driver |
++-----------------+-------------------+-------------+
 
-As shown in the table, on top of UART and SPI we also use XMODEM-CRC_,
-in order to provide QDA with a reliable packet-based transport layer.
+As shown in the table, XMODEM-CRC_ is used on top of UART. The reason is to
+provide QDA with a reliable packet-based transport layer.
 
 USB/DFU
 =======

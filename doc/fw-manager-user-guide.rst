@@ -56,8 +56,8 @@ Installing UART version
 -----------------------
 
 *dfu-util-qda* is the tool needed to flash QFU images over UART to the target
-or manage the device.  You can get the software from
-https://github.com/quark-mcu/qm-dfu-util, follow the building instructions in
+or manage the device. You can get the software from
+https://github.com/quark-mcu/qm-dfu-util, follow the build instructions in
 the `readme file
 <https://github.com/quark-mcu/qm-dfu-util/blob/master/README.rst>`__.
 
@@ -174,7 +174,7 @@ to be ``8086`` and ``48FC`` respectively.
 
 - For the USB connection::
 
-    make -C examples/blinky flash SOC=quark_se TARGET=x86 USB_DEVICE=<8086:48FC>
+    make -C examples/blinky flash SOC=quark_se TARGET=x86 USB_DEVICE=8086:48FC
 
 Step by step process (without make flash)
 -----------------------------------------
@@ -195,7 +195,7 @@ be x86 or sensor depending on the used core.
 
     python ./tools/sysupdate/qm_make_dfu.py -v <BINARY_FILE> -p <PARTITION>
 
-The ``-p`` parameter is used to choose the flash partition. Partition 1 is used
+The ``-p`` option is used to choose the flash partition. Partition 1 is used
 by the x86 core and partition 2 is used by the Sensor Subsystem.
 
 The ``-v`` option makes the tool output some information about the generated
@@ -207,7 +207,7 @@ The output DFU image will have the same name of the binary file with the
 * Reset the device while connecting the FM GPIO to ground.
 * Download the image.
 
-  - Using a  UART connection::
+  - Using a UART connection::
 
       dfu-util-qda -D <DFU_IMAGE> -p <SERIAL_INTERFACE> -R -a <PARTITION>
 
@@ -215,10 +215,10 @@ The output DFU image will have the same name of the binary file with the
 
       dfu-util -D <DFU_IMAGE> -d <VENDOR_ID:PRODUCT_ID> -R -a <PARTITION>
 
-The ``-a`` parameter is used to choose the flash partition. Partition 1 is used
+The ``-a`` option is used to choose the flash partition. Partition 1 is used
 by the x86 core and partition 2 is used by the Sensor Subsystem.
 
-The ``-R`` parameter will reset the device after the download is finished.
+The ``-R`` option will reset the device after the download is finished.
 
 Step by step example
 ++++++++++++++++++++
@@ -240,7 +240,7 @@ to be ``8086`` and ``48FC`` respectively.
 
     python ./tools/sysupdate/qm_make_dfu.py -v examples/blinky/release/quark_se/x86/bin/blinky.bin -p 1
 
-* You should get the following output if you add -v as a parameter::
+* You should get the following output if you use the -v option::
 
     qm_make_dfu.py: QFU-Header and DFU-Suffix content:
           Partition:   1
@@ -263,8 +263,7 @@ to be ``8086`` and ``48FC`` respectively.
 
   - Using a USB connection::
 
-      dfu-util -D examples/blinky/release/quark_se/x86/bin/blinky.bin.dfu -d <8086:48FC> -R -a 1
-
+      dfu-util -D examples/blinky/release/quark_se/x86/bin/blinky.bin.dfu -d 8086:48FC -R -a 1
 
 .. note:: The path of the binary may differ when building a D2000 or a
           Sensor Subsystem image.
@@ -312,5 +311,5 @@ System Information
      qm_manage.py info -d <VENDOR_ID:PRODUCT_ID>
 
 
-.. note:: By specifying the ``--format`` parament, the output format can be set
+.. note:: By specifying the ``--format`` option, the output format can be set
           to either text (default) or json.

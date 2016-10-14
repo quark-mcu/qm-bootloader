@@ -98,7 +98,7 @@ variable must point to the QMSI folder, for instance:
 If such a variable is not defined, the bootloader expects QMSI folder to be
 named ``qmsi`` and be a sibling folder of the bootloader one.
 
-To use the "make flash" command ,the $QM_BOOTLOADER_DIR environment variable
+To use the "make flash" command, the $QM_BOOTLOADER_DIR environment variable
 should be set.
 
 ``export QM_BOOTLOADER_DIR=$HOME/bootloader``
@@ -163,7 +163,7 @@ For SE C1000, start OpenOCD with the following command:
 ``$ ./bin/openocd -f scripts/board/quark_se_onboard.cfg``
 
 Create a new terminal session at this point and set environment variables
-accordingly.  Then launch a GDB session using:
+accordingly. Then launch a GDB session using:
 
 ``$ gdb``
 

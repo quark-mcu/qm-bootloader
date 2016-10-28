@@ -67,23 +67,23 @@ void boot_sense_jtag_probe(void)
 
 static QM_ISR_DECLARE(aonpt_spurious_isr)
 {
-	QM_ISR_EOI(QM_IRQ_AONPT_0_VECTOR);
+	QM_ISR_EOI(QM_IRQ_AONPT_0_INT_VECTOR);
 }
 
 static QM_ISR_DECLARE(rtc_spurious_isr)
 {
-	QM_ISR_EOI(QM_IRQ_RTC_0);
+	QM_ISR_EOI(QM_IRQ_RTC_0_INT);
 }
 
 static QM_ISR_DECLARE(aon_cmp_spurious_isr)
 {
-	QM_ISR_EOI(QM_IRQ_AC);
+	QM_ISR_EOI(QM_IRQ_COMPARATOR_0_INT);
 }
 
 #if (QUARK_SE)
 static QM_ISR_DECLARE(aongpio_spurious_isr)
 {
-	QM_ISR_EOI(QM_IRQ_AONGPIO_0_VECTOR);
+	QM_ISR_EOI(QM_IRQ_AON_GPIO_0_INT_VECTOR);
 }
 #endif
 
@@ -92,10 +92,12 @@ void boot_aon_handle_spurious_irq(void)
 	/* The PIC IRR register may be asserted by the application before a warm
 	 * reset. IRR cannot be cleared by software, so let's just catch this
 	 * single spurious interrupt. */
-	qm_int_vector_request(QM_IRQ_AONPT_0_VECTOR, aonpt_spurious_isr);
-	qm_int_vector_request(QM_IRQ_AC_VECTOR, aon_cmp_spurious_isr);
-	qm_int_vector_request(QM_IRQ_RTC_0_VECTOR, rtc_spurious_isr);
+	qm_int_vector_request(QM_IRQ_AONPT_0_INT_VECTOR, aonpt_spurious_isr);
+	qm_int_vector_request(QM_IRQ_COMPARATOR_0_INT_VECTOR,
+			      aon_cmp_spurious_isr);
+	qm_int_vector_request(QM_IRQ_RTC_0_INT_VECTOR, rtc_spurious_isr);
 #if (QUARK_SE)
-	qm_int_vector_request(QM_IRQ_AONGPIO_0_VECTOR, aongpio_spurious_isr);
+	qm_int_vector_request(QM_IRQ_AON_GPIO_0_INT_VECTOR,
+			      aongpio_spurious_isr);
 #endif
 }

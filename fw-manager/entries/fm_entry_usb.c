@@ -53,7 +53,7 @@ int fm_entry_usb(void)
 	clk_sys_udelay(50000);
 	usb_dfu_start();
 
-	qm_irq_request(QM_IRQ_USB_0, qm_usb_0_isr_0);
+	qm_irq_request(QM_IRQ_USB_0_INT, qm_usb_0_isr);
 
 	/*
 	 * NOTE: consider making this loop smarter by moving the timeout logic

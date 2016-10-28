@@ -17,6 +17,12 @@ FLOW
      - Move to 32bit protected mode.
      - Enable cache  [Quark SE only].
 
+#. Resume from sleep: [Compile option: ``ENABLE_RESTORE_CONTEXT=1``]
+    - Resume application execution if the device was put into sleep mode. A
+      soft reboot is performed when a device comes out of sleep mode. The
+      bootloader checks if the ``GPS1`` sticky register is set and perform a
+      jump to the address stored in ``GPS1``.
+
 #. Set-up primary peripherals and registers:
      - Stack pointer set-up
      - RAM set-up

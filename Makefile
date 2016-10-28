@@ -67,6 +67,10 @@ help:
 	$(info bootloader.)
 	$(info By default, ENABLE_FIRMWARE_MANAGER=none)
 	$(info )
+	$(info To disable context saving on sleep for Quark SE, compile the ROM)
+	$(info with ENABLE_RESTORE_CONTEXT=0)
+	$(info By default, ENABLE_RESTORE_CONTEXT=1)
+	$(info )
 	$(info QMSI source code is needed for compilation. By default QMSI)
 	$(info code is expected to be located in '../qmsi'.)
 	$(info The QMSI_SRC_DIR variable can be defined to change it.)
@@ -82,4 +86,3 @@ distclean:
 	$(foreach build, $(SUPPORTED_BUILDS),\
 		$(MAKE) SOC=$(soc) BUILD=$(build) realclean \
 		$(END_CMD)))
-	make -C tests/unit_tests/bootloader realclean

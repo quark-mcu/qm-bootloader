@@ -265,6 +265,7 @@ to be ``8086`` and ``48FC`` respectively.
 
       dfu-util -D examples/blinky/release/quark_se/x86/bin/blinky.bin.dfu -d 8086:48FC -R -a 1
 
+
 .. note:: The path of the binary may differ when building a D2000 or a
           Sensor Subsystem image.
 

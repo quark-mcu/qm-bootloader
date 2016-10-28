@@ -143,9 +143,9 @@ static __inline__ void irq_setup(void)
 	uint8_t i;
 
 	/* Apply POR settings to SCSS int routing as SCSS regs are sticky */
-	for (i = 0; i < QM_SCSS_INT_MASK_NUMREG; i++) {
-		*((volatile uint32_t *)QM_SCSS_INT + i) =
-		    QM_SCSS_INT_MASK_DEFAULT;
+	for (i = 0; i < QM_INTERRUPT_ROUTER_MASK_NUMREG; i++) {
+		*((volatile uint32_t *)QM_INTERRUPT_ROUTER + i) =
+		    QM_INTERRUPT_ROUTER_MASK_DEFAULT;
 	}
 }
 
@@ -179,7 +179,7 @@ void rom_startup(void)
 	idt_init();
 	boot_aon_handle_spurious_irq();
 #if (DEBUG)
-	qm_int_vector_request(QM_INT_VECTOR_DOUBLE_FAULT, double_fault_isr);
+	qm_int_vector_request(QM_X86_DOUBLE_FAULT_INT, double_fault_isr);
 #endif
 	soc_boot_init_interrupt_controller();
 	__asm__ __volatile__("sti");

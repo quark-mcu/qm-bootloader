@@ -19,6 +19,14 @@ Overview
 +------------------+---------------+----------------+------------------+
 | JTAG probe       | GPIO_13       | GPI0_15        | Do not ground    |
 +------------------+---------------+----------------+------------------+
+| Sleep register   | N/A           | GPS0 bit 1     | x86 restore bit  |
+|                  | N/A           | GPS0 bit 2     | arc restore bit  |
++------------------+---------------+----------------+------------------+
+| Sleep storage    |               | __x86_restore_ |                  |
+|                  |               |  info          |                  |
++                  +               +                +                  +
+| - x86 trap       | N/A           | 4 bytes        | Reserved         |
++------------------+---------------+----------------+------------------+
 | UART port        | Uart 0        | Uart 1         | Available to app |
 +------------------+---------------+----------------+------------------+
 | USB controller   | n/a           | USB 0          | Available to app |
@@ -56,12 +64,21 @@ Sticky registers
 
 The bootloader uses the following sticky registers:
 
+* Resume from sleep:  [Compile option: ``ENABLE_RESTORE_CONTEXT=1``]
+    - Quark SE C1000:    ``GPS0 bit1 and the 4 bytes in esram_shared``
+
+  The bootloader will use the sticky register to handle resuming the
+  application from a sleep power state as well as the 4 bytes of the
+  common RAM defined as a section esram_restore_info will be used to
+  save the restore trap address.
+
 * FM sticky bit:  [Compile option: ``ENABLE_FIRMWARE_MANAGER=[uart|2nd-stage]``]
     - All SoC's:    ``GPS0 bit 0``
 
   This register is used to start the bootloader in Firmware Management (FM)
-  mode. **This bit is reserved for the bootloader, the application should not
-  use it.**
+  mode.
+
+**The application must not use the sticky registers used by the bootloader.**
 
 Peripherals
 ***********

@@ -220,7 +220,7 @@ static void timeout(void *data)
 
 static __inline__ void start_timer(void)
 {
-	qm_int_vector_request(QM_INT_VECTOR_PIC_TIMER, qm_pic_timer_isr);
+	qm_int_vector_request(QM_X86_PIC_TIMER_INT_VECTOR, qm_pic_timer_0_isr);
 
 	qm_pic_timer_set_config(&pic_conf);
 

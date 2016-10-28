@@ -34,13 +34,19 @@
 
 .extern rom_startup
 .extern __stack_start
+.extern __x86_restore_info
 
 #
 # CR0 cache control bit definition
 #
 .equ CR0_CACHE_DISABLE, 0x040000000
 .equ CR0_NO_WRITE, 0x020000000
-.equ GPS1_REGISTER, 0xb0800104
+
+#
+# Context save/restore definitions
+#
+.equ GPS0_REGISTER, 0xb0800100
+.equ RESTORE_BIT, 1
 
 .text
 #----------------------------------------------------------------------------
@@ -142,6 +148,20 @@ protected_mode_entry:
 	andl $~(CR0_CACHE_DISABLE + CR0_NO_WRITE), %eax
 	movl %eax, %cr0
 
+#if (ENABLE_RESTORE_CONTEXT)
+	#
+	# Check if we are returning from a 'sleep' state and jump to the
+	# restore trap if that's the case. The restore trap will restore the
+	# execution context we had before entering in 'sleep' state.
+	#
+	btr $RESTORE_BIT, GPS0_REGISTER
+	jnc regular_boot
+
+	movl $__x86_restore_info, %eax
+	jmp *(%eax)
+
+regular_boot:
+#endif
 	#
 	# Set up stack pointer. The stack start address is defined in
 	# the linker script. ESP = top of the stack (the stack grows

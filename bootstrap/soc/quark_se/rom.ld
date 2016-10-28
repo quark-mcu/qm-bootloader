@@ -51,7 +51,9 @@ MEMORY
 	 */
 	esram (rw)	: ORIGIN = 0xA800A220, LENGTH = 40K - 1K - 0x220
 	/* Stack */
-	stack (rw)	: ORIGIN = 0xA8013C00, LENGTH = 1K
+	stack (rw)	: ORIGIN = 0xA8013C00, LENGTH = 1K - 0x4
+	/* Shared RAM */
+	esram_restore_info (rw) : ORIGIN = 0xA8013FFC, LENGTH = 0x4
 }
 
 /* Sensor Subsystem reset vector definition */
@@ -63,6 +65,9 @@ __stack_start = ORIGIN(stack) + LENGTH(stack);
 /* IDT definition */
 __idt_start = ORIGIN(esram_idt);
 __idt_end = __idt_start + LENGTH(esram_idt);
+
+/* Shared RAM definition */
+__x86_restore_info = ORIGIN(esram_restore_info);
 
 SECTIONS
 {

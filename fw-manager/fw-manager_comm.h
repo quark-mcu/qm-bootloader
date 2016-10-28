@@ -44,15 +44,15 @@
 #define FM_COMM_UART_PIN_RX_ID (QM_PIN_ID_19)
 #define FM_COMM_UART_PIN_RX_FN (QM_PMUX_FN_0)
 #define FM_COMM_UART_CLK (CLK_PERIPH_UARTA_REGISTER)
-#define fm_comm_irq_request() qm_irq_request(QM_IRQ_UART_0, qm_uart_0_isr)
+#define fm_comm_irq_request() qm_irq_request(QM_IRQ_UART_0_INT, qm_uart_0_isr)
 #elif(FM_CONFIG_UART == 1)
 #define FM_COMM_UART_PIN_TX_ID (QM_PIN_ID_16)
 #define FM_COMM_UART_PIN_TX_FN (QM_PMUX_FN_2)
 #define FM_COMM_UART_PIN_RX_ID (QM_PIN_ID_17)
 #define FM_COMM_UART_PIN_RX_FN (QM_PMUX_FN_2)
-#define FM_COMM_UART_IRQ (QM_IRQ_UART_1)
+#define FM_COMM_UART_IRQ (QM_IRQ_UART_1_INT)
 #define FM_COMM_UART_CLK (CLK_PERIPH_UARTB_REGISTER)
-#define fm_comm_irq_request() qm_irq_request(QM_IRQ_UART_1, qm_uart_1_isr)
+#define fm_comm_irq_request() qm_irq_request(QM_IRQ_UART_1_INT, qm_uart_1_isr)
 #else
 #error "Invalid UART ID for FM comm"
 #endif /* FM_CONFIG_UART */
@@ -63,15 +63,15 @@
 #define FM_COMM_UART_PIN_RX_ID (QM_PIN_ID_13)
 #define FM_COMM_UART_PIN_RX_FN (QM_PMUX_FN_2)
 #define FM_COMM_UART_CLK (CLK_PERIPH_UARTA_REGISTER)
-#define fm_comm_irq_request() qm_irq_request(QM_IRQ_UART_0, qm_uart_0_isr)
+#define fm_comm_irq_request() qm_irq_request(QM_IRQ_UART_0_INT, qm_uart_0_isr)
 #elif(FM_CONFIG_UART == 1)
 #define FM_COMM_UART_PIN_TX_ID (QM_PIN_ID_20)
 #define FM_COMM_UART_PIN_TX_FN (QM_PMUX_FN_2)
 #define FM_COMM_UART_PIN_RX_ID (QM_PIN_ID_21)
 #define FM_COMM_UART_PIN_RX_FN (QM_PMUX_FN_2)
-#define FM_COMM_UART_IRQ (QM_IRQ_UART_1)
+#define FM_COMM_UART_IRQ (QM_IRQ_UART_1_INT)
 #define FM_COMM_UART_CLK (CLK_PERIPH_UARTB_REGISTER)
-#define fm_comm_irq_request() qm_irq_request(QM_IRQ_UART_1, qm_uart_1_isr)
+#define fm_comm_irq_request() qm_irq_request(QM_IRQ_UART_1_INT, qm_uart_1_isr)
 #else
 #error "Invalid UART ID for FM comm"
 #endif /* FM_CONFIG_UART */

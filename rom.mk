@@ -49,10 +49,18 @@ STARTUP_BIN = $(BOOT_SOC_DIR)/$(BUILD)/$(OBJ)/rom_startup.bin
 ROM_LINKER_FILE ?= $(BOOT_SOC_DIR)/rom.ld
 
 # TODO: create a soc-specific mk for this or a centralized config.mk. This will
-# be responsible for:
-# 1) documenting all possible build options
-# 2) doing the "contract checking"
+# be responsible for 1) documenting all possible build options, 2) doing the
+# "contract checking" (i.e. if quark_d2000 and ENABLE_RESTORE_CONTEXT, fail),
 # 3) expanding the CFLAGS that result from the build-time options.
+ifeq ($(SOC),quark_se)
+  ENABLE_RESTORE_CONTEXT ?= 1
+  ifeq ($(ENABLE_RESTORE_CONTEXT),0)
+  CFLAGS += -DENABLE_RESTORE_CONTEXT=0
+  ROM_SUFFIX_NO_RESTORE_CONTEXT = _no_restore_context
+  else
+  CFLAGS += -DENABLE_RESTORE_CONTEXT=1
+  endif
+endif
 
 # Always include fw-manager (FM) makefile to ensure that
 # clean/realclean/distclean works properly, i.e., also delete FM objects and
@@ -81,6 +89,7 @@ endif
 # Define ROM file name
 # (Suffix is built on multiple lines to respect 80 chars limit)
 ROM_SUFFIX := $(ROM_SUFFIX_FM)
+ROM_SUFFIX := $(ROM_SUFFIX)$(ROM_SUFFIX_NO_RESTORE_CONTEXT)
 ROM = $(ROM_BUILD_DIR)/$(SOC)_rom$(ROM_SUFFIX).bin
 
 .PHONY: rom

@@ -54,7 +54,6 @@ DEFAULT_SOC = quark_se
 SOC ?= $(DEFAULT_SOC)
 $(info SOC = $(SOC))
 SUPPORTED_SOCS = quark_se \
-		 quark_se_2 \
                  quark_d2000
 ifeq ($(filter $(SOC),$(SUPPORTED_SOCS)),)
 $(error SOC=$(SOC) is not supported.)
@@ -103,6 +102,20 @@ ifeq ($(BUILD),debug)
 $(error "Cannot combine (first-stage) Firmware Management over UART with \
 	 debug build due to footprint constraints.")
 endif
+endif
+
+# TODO: move to a soc-specific mk
+ifeq ($(SOC),quark_se)
+    # Option to enable context sleep
+    ENABLE_RESTORE_CONTEXT ?= 1
+    SUPPORTED_ENABLE_RESTORE_CONTEXT = 0 \
+		                       1
+    $(info ENABLE_RESTORE_CONTEXT = $(ENABLE_RESTORE_CONTEXT))
+    ifeq ($(filter $(ENABLE_RESTORE_CONTEXT),\
+	    $(SUPPORTED_ENABLE_RESTORE_CONTEXT)),)
+        $(error Supported ENABLE_RESTORE_CONTEXT values are '0' and '1'.)
+    endif
+    QMSI_BUILD_OPTIONS += ENABLE_RESTORE_CONTEXT=$(ENABLE_RESTORE_CONTEXT)
 endif
 
 # Special parameters for custom-boards (not mentioned in the help)

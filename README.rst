@@ -110,6 +110,7 @@ Building options
 The bootloader makefile supports the following build parameters:
         - SOC
         - ENABLE_FIRMWARE_MANAGER
+        - ENABLE_RESTORE_CONTEXT
 
 Target SoC selection
 --------------------
@@ -140,6 +141,21 @@ By default, firmware management mode is not enabled.
 
 More info on building and flashing an application using the firmware management
 mode can be found in the `Firmware Manager User Guide`_.
+
+Return from sleep
+-----------------
+
+The Quark SE has support for sleep states that power off the CPU. When a
+wake event happens, the CPU starts over from the reset vector as in a normal
+power on. To do so, build both the bootloader and libqmsi with
+'ENABLE_RESTORE_CONTEXT=1'.
+
+``make SOC=quark_se ENABLE_RESTORE_CONTEXT=1``
+
+The context of the Quark D2000 is restored by the hw. For that reason,
+the ENABLE_RESTORE_CONTEXT option has no effect on Quark D2000 SoC.
+
+By default, context save and restore management is enabled on Quark SE.
 
 Flashing
 ========

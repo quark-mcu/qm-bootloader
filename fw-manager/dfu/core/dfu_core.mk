@@ -29,15 +29,8 @@
 
 ### Variables
 DFU_CORE_DIR = $(DFU_DIR)/core
-OBJ_DIRS += $(DFU_CORE_DIR)/$(BUILD)/$(SOC)/$(TARGET)
 DFU_CORE_SOURCES = $(wildcard $(DFU_CORE_DIR)/*.c)
-DFU_CORE_OBJ_DIR = $(DFU_CORE_DIR)/$(BUILD)/$(SOC)/$(TARGET)/$(OBJ)
+DFU_CORE_OBJ_DIR = $(DFU_OBJ_DIR)/core
 DFU_CORE_OBJS = $(addprefix $(DFU_CORE_OBJ_DIR)/,                              \
 					$(notdir $(DFU_CORE_SOURCES:.c=.o)))
 FM_OBJS += $(DFU_CORE_OBJS)
-GENERATED_DIRS += $(DFU_CORE_DIR)/$(BUILD)
-
-### Build C files
-$(DFU_CORE_OBJ_DIR)/%.o: $(DFU_CORE_DIR)/%.c qmsi
-	$(call mkdir, $(DFU_CORE_OBJ_DIR))
-	$(CC) $(CFLAGS) -c -o $@ $<

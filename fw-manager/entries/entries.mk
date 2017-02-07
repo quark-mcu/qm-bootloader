@@ -28,9 +28,7 @@
 #
 
 FM_ENTRY_DIR = $(FM_DIR)/entries
-OBJ_DIRS += $(FM_ENTRY_DIR)/$(BUILD)/$(SOC)
-GENERATED_DIRS += $(FM_ENTRY_DIR)/$(BUILD)
-FM_ENTRY_OBJ_DIR = $(FM_ENTRY_DIR)/$(BUILD)/$(SOC)/$(OBJ)
+FM_ENTRY_OBJ_DIR = $(FM_OBJ_DIR)/entries
 
 FM_ENTRY_SRCS = fm_entry_uart.c
 # Additional fm_entries valid only for Quark SE
@@ -45,8 +43,3 @@ FM_OBJS += $(FM_ENTRY_OBJS)
 ### Flags
 CFLAGS += -I$(FM_ENTRY_DIR)
 CFLAGS += -I$(QMSI_SRC_DIR)/usb/include
-
-### Build C files
-$(FM_ENTRY_OBJ_DIR)/%.o: $(FM_ENTRY_DIR)/%.c qmsi
-	$(call mkdir, $(FM_ENTRY_OBJ_DIR))
-	$(CC) $(CFLAGS) -c -o $@ $<

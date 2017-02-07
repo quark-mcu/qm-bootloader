@@ -18,6 +18,8 @@ FM mode provides the following services to the users:
   capability, etc.)
 * Application firmware update
 * Application firmware erase (erase of all the application code in flash)
+* Secure update. Read the `secure boot documentation <secure-boot.rst>`_ for
+  more info about the secure boot functionality.
 
 The MCU enters FM mode only after an explicit request from the host. The
 mechanism used by the host to signal an Enter-FM request to the device depends

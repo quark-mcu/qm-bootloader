@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# @file This file merges the reset vector and the ROM code into an 8 KB image
-
 #
 # Copyright (c) 2016, Intel Corporation
 # All rights reserved.
@@ -30,34 +27,19 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
-import os
-import sys
-import struct
+# List supported modes
+SUPPORTED_SOCS = quark_se
 
-# Command line parameters
-romCodeFilename = sys.argv[1]
-outputFilename = sys.argv[2]
+SUPPORTED_TARGETS = x86
 
-imageFile = open(outputFilename, 'wb+')
-romCodeFile = open(romCodeFilename, 'rb').read()
-imageLen = 0x2000  # ROM size for Quark SE SOC is 8 KB (0x2000)
-dataAreaLen = 0x200  # We reserve 512 bytes for the OTP word and data storage
-offset = 0
+SUPPORTED_BUILDS = debug \
+				   release
 
-# Pad data area with 0xFF
-for offset in range(dataAreaLen):
-    imageFile.write(b'\xFF')
-    offset += 1
+SUPPORTED_FM_MODE_quark_se = uart \
+			     usb
 
-# Write ROM code
-imageFile.write(romCodeFile)
-romCodeLen = len(romCodeFile)
-offset += romCodeLen
+SUPPORTED_CSTD = c99 \
+		 		 c90
 
-imageFile.close()
-
-print('. . . . . . . . . . . . . . . . . . . . . . . . . . . .')
-print('Image size = ' + hex(imageLen))
-print('Data area size = ' + hex(dataAreaLen))
-print('ROM code size = ' + hex(romCodeLen))
-print('. . . . . . . . . . . . . . . . . . . . . . . . . . . .')
+SUPPORTED_FM_AUTH = 0 \
+					1

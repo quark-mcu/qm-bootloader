@@ -34,6 +34,41 @@
 
 #include "qm_common.h"
 
+#include "fw-manager_config.h"
+#include "../bl_data.h"
+
+/* DFU attributes */
+#define DFU_ATTR_CAN_DNLOAD 0x01
+#define DFU_ATTR_CAN_UPLOAD 0x02
+#define DFU_ATTR_MANIFESTATION_TOLERANT 0x4
+
+/* Maximum supported block size. */
+#define DFU_MAX_BLOCK_SIZE (QFU_BLOCK_SIZE)
+
+/* DFU Version (as BCD). */
+#define DFU_VERSION_BCD (0x0101)
+
+/**
+ * Number of alternate settings.
+ *
+ * Number of partitions + QFM alternate setting (i.e., alt setting 0).
+ */
+#define DFU_NUM_ALT_SETTINGS (1 + BL_FLASH_PARTITIONS_NUM)
+
+/* These are exposed in DFU Descriptors. */
+/* Detach timeout. */
+#define DFU_DETACH_TIMEOUT (0xFFFF)
+
+/**
+ * DFU attributes (bitfield).
+ *
+ * DFU bmAttributes (bitfield): 0x07 (bitWillDetach = 0,
+ * bitManifestationTollerant = 1, bitCanUpload = 1, bitCanDnload = 1)
+ */
+#define DFU_ATTRIBUTES                                                         \
+	(BIT(DFU_ATTR_CAN_DNLOAD) | BIT(DFU_ATTR_CAN_UPLOAD) |                 \
+	 BIT(DFU_ATTR_MANIFESTATION_TOLERANT))
+
 /**
  * DFU device statuses.
  */
@@ -155,7 +190,7 @@ typedef struct {
 	 * Initialize the DFU Request Handler.
 	 *
 	 * This function is called when a DFU alternate setting associated with
-	 * the handler is selected.
+	 * the handler is selected. This function pointer must not be null.
 	 *
 	 * @param[in] alt_setting The specific alternate setting activating this
 	 * 			  handler.
@@ -165,17 +200,21 @@ typedef struct {
 	 * Get the processing status of the last DNLOAD block.
 	 *
 	 * This function is called by the DFU logic to ask the handler for
-	 * information about the processing of the last DNLOAD block.
+	 * information about the processing of the last DNLOAD block. This
+	 * function pointer must not be null.
 	 *
 	 * @param[out] status		A pointer to the variable where to store
 	 * 				the (error) status of the processing. If
 	 * 				no error has occurred the variable is
-	 * 				set to DFU_STATUS_OK.
+	 * 				set to DFU_STATUS_OK. The pointer must
+	 *				not be null.
+	 *
 	 * @param[out] poll_timeout_ms	A pointer to the variable where to
 	 * 				store the poll timeout. If the
 	 * 				processing is completed, the variable is
 	 *				set to zero; otherwise it is set to the
-	 *				expected remaining time.
+	 *				expected remaining time. The pointer
+	 *				must not be null.
 	 */
 	void (*get_proc_status)(dfu_dev_status_t *status,
 				uint32_t *poll_timeout_ms);
@@ -184,17 +223,18 @@ typedef struct {
 	 *
 	 * This function is called by the DFU logic when a DFU_CLRSTATUS
 	 * request is received. The host issues such a request after an error,
-	 * to recover from it.
+	 * to recover from it. This function pointer must not be null.
 	 */
 	void (*clr_status)(void);
 	/**
 	 * Process a DFU_DNLOAD block.
 	 *
 	 * This function is called by the DFU logic when a DNLOAD block is
-	 * received.
+	 * received. This function pointer must not be null.
 	 *
 	 * @param blk_num The block number (first block is always block 0).
-	 * @param data	  The buffer containing the block payload.
+	 * @param data	  The buffer containing the block payload. The
+	 *		  pointer must not be null.
 	 * @param len	  The length of the payload.
 	 */
 	void (*proc_dnload_blk)(uint32_t blk_num, const uint8_t *data,
@@ -203,32 +243,38 @@ typedef struct {
 	 * Finalize the current DFU_DNLOAD transfer.
 	 *
 	 * This function is called by the DFU logic when a DNLOAD block with
-	 * zero length is received.
+	 * zero length is received. This function pointer must not be null.
+	 *
+	 * @param blk_num The block number of the finalize request.
 	 *
 	 * @return QMSI return code.
-	 * @retval 0    if handler agrees with the end of the transfer.
-	 * @retval -EIO if handler was actually expecting more data.
+	 * @retval 0 if handler agrees with the end of the transfer.
+	 * @retval -EINVAL if handler was actually expecting more data.
 	 */
-	int (*fin_dnload_xfer)(void);
+	int (*fin_dnload_xfer)(uint32_t blk_num);
 	/**
 	 * Fill up a DFU_UPLOAD block.
 	 *
 	 * This function is called by the DFU logic when a request for an
 	 * UPLOAD block is received. The handler is in charge of filling the
-	 * payload of the block.
+	 * payload of the block. This function pointer must not be null.
 	 *
 	 * @param[in]  blk_num The block number (first block is always block 0).
-	 * @param[out] data    The buffer where the payload will be put.
+	 * @param[out] data    The buffer where the payload will be put. The
+	 *		       pointer must not be null.
 	 * @param[in]  req_len The amount of data requested by the host.
 	 * @param[out] len     A pointer to the variable where to store the
 	 *                     actual amount of data provided by the handler
-	 * 		       (len < req_len means that there is no more data
-	 * 		       to send, i.e., this is the last block).
+	 * 		       (len < req_len *means that there is no more data
+	 * 		       to send, i.e., this is the last block). The
+	 *		       pointer must not be null.
 	 */
 	void (*fill_upload_blk)(uint32_t blk_num, uint8_t *data,
 				uint16_t req_len, uint16_t *len);
 	/**
 	 * Abort current DNLOAD transfer.
+	 *
+	 * This function pointer must not be null.
 	 */
 	void (*abort_dnload_xfer)(void);
 } dfu_request_handler_t;

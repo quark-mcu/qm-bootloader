@@ -29,15 +29,8 @@
 
 ### Variables
 DFU_QDA_DIR = $(DFU_DIR)/qda
-OBJ_DIRS += $(DFU_QDA_DIR)/$(BUILD)/$(SOC)/$(TARGET)
 DFU_QDA_SOURCES = $(wildcard $(DFU_QDA_DIR)/*.c)
-DFU_QDA_OBJ_DIR = $(DFU_QDA_DIR)/$(BUILD)/$(SOC)/$(TARGET)/$(OBJ)
+DFU_QDA_OBJ_DIR = $(DFU_OBJ_DIR)/qda
 DFU_QDA_OBJECTS = $(addprefix $(DFU_QDA_OBJ_DIR)/,                             \
 					$(notdir $(DFU_QDA_SOURCES:.c=.o)))
 FM_OBJS += $(DFU_QDA_OBJECTS)
-GENERATED_DIRS += $(DFU_QDA_DIR)/$(BUILD)
-
-### Build C files
-$(DFU_QDA_OBJ_DIR)/%.o: $(DFU_QDA_DIR)/%.c qmsi
-	$(call mkdir, $(DFU_QDA_OBJ_DIR))
-	$(CC) $(CFLAGS) -c -o $@ $<

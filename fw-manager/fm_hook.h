@@ -38,6 +38,15 @@
  *
  * \note If FM mode is entered, this function does not return.
  */
-void fm_hook();
+void fm_hook(void);
+
+/**
+ * Firmware Management secure entry.
+ *
+ * Set up the MPR and FPR policy and go into firmware management mode.
+ *
+ * \note This function does not return.
+ */
+void fm_secure_entry(void);
 
 #endif /* __FM_HOOK_H__ */

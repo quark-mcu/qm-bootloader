@@ -38,7 +38,8 @@ MEMORY
 	/* Place IDT at the bottom of SRAM, 68 gate wide */
 	esram_idt (rw)	: ORIGIN = 0xA800A000, LENGTH = 0x220
 	esram (rw)	: ORIGIN = 0xA800A220, LENGTH = 40K - 1K - 0x220
-	stack (rw)	: ORIGIN = 0xA8013C00, LENGTH = 1K
+	stack (rw)	: ORIGIN = 0xA8013C00, LENGTH = 1K - 0x4 - 0x20
+	esram_gdt (rw)  : ORIGIN = 0xA8013FE0, LENGTH = 0x20
 }
 
 /* IDT definition */
@@ -83,6 +84,7 @@ SECTIONS
 	__data_size = SIZEOF(.data);
 	__bss_start = ADDR(.bss);
 	__bss_end = __bss_start + SIZEOF(.bss);
+	__bss_size = SIZEOF(.bss);
 
 	/* Heap */
 	__heap = .;

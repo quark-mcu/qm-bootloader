@@ -41,14 +41,22 @@ import sys
 import argparse
 import subprocess
 import tempfile
-
 import qmfmlib
-
-__version__ = "1.1"
-
+import re
+import collections
+__version__ = "1.4"
 # If you plan to use Unicode characters (e.g., ® and ™) in the following string
 # please ensure that your solution works fine on a Windows console.
 DESC = "Intel(R) Quark(TM) Microcontroller Firmware Management tool."
+DFU_STATUS_ERR_TARGET = 1
+DFU_STATUS_ERR_VENDOR = 11
+
+
+class QMManageException(Exception):
+    """QM Manage Exception."""
+
+    def __init__(self, message):
+        super(QMManageException, self).__init__(message)
 
 
 class QMManage(object):
@@ -112,22 +120,26 @@ class QMManage(object):
             self.parser.error(error)
         return file_name
 
-    def call_tools(self, cmd, message):
-        """Call command and return stdout or False."""
-        print(message, end="")
+    def call_tools(self, cmd):
+        """Call command and return a tuple with status code and stdout."""
+        return_value = collections.namedtuple('return_value', ['status', 'out'])
         sys.stdout.flush()
         p = subprocess.Popen(cmd,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
         out, err = p.communicate()
+        if self.args.verbose:
+            print("\n" + out)
 
         if err:
-            print("[FAIL]")
-            print(err.strip())
-            return False
+            return return_value(status=-1, out=out)
 
-        print("[DONE]")
-        return out
+        # Check if we there is an error in the output
+        m = re.search(r'dfuERROR.*?status\(([0-9]*)', out)
+        if m:
+            return return_value(status=int(m.group(1)), out=out)
+
+        return return_value(status=0, out=out)
 
     def list_devices(self):
         """Perform 'list' tasks."""
@@ -143,10 +155,13 @@ class QMManage(object):
             cmd.append("-d")
             cmd.append(self.args.device)
 
-        out = self.call_tools(cmd, "Reading USB device list...\t\t")
-        if not out:
+        print("Reading USB device list...\t\t", end="")
+        retv = self.call_tools(cmd)
+        if retv.status:
+            print("[FAIL]")
             exit(1)
-        print(out)
+        print("[DONE]")
+        print(retv.out)
 
     def info(self):
         """Perform 'info' tasks."""
@@ -166,8 +181,11 @@ class QMManage(object):
         # Write temp output file. This file will be passed on to dfu-utils-qda.
         file_name = self._create_temp(data)
         # Download request to device. Using alternate setting 0 (QFM).
-        if not self.call_tools(cmd + ["-D", file_name, "-a", "0"],
-                               "Requesting system information...\t"):
+        print("Requesting system information...\t", end="")
+        retv = self.call_tools(cmd + ["-D", file_name, "-a", "0"])
+
+        if retv.status:
+            print("[FAIL]")
             os.remove(file_name)
             exit(1)
         os.remove(file_name)
@@ -179,10 +197,14 @@ class QMManage(object):
         os.remove(file_name)
 
         # Upload response from device. Using alternate setting 0 (QFM).
-        if not self.call_tools(cmd + ["-U", file_name, "-a", "0"],
-                               "Reading system information...\t\t"):
+        print("Reading system information...\t\t", end="")
+        retv = self.call_tools(cmd + ["-U", file_name, "-a", "0"])
+
+        if retv.status:
+            print("[FAIL]")
             exit(1)
 
+        print("[DONE]")
         in_file = open(file_name, "rb")
         response = qmfmlib.QFMResponse(in_file.read())
         in_file.close()
@@ -213,11 +235,111 @@ class QMManage(object):
 
         # Write output file.
         file_name = self._create_temp(data)
-        if not self.call_tools(cmd + ["-D", file_name, "-a", "0"],
-                               "Erasing all application data...\t\t"):
+        print("Erasing all application data...\t\t", end="")
+        retv = self.call_tools(cmd + ["-D", file_name, "-a", "0"])
+
+        if retv.status:
+            print("[FAIL]")
             os.remove(file_name)
             exit(1)
+
+        print("[DONE]")
         os.remove(file_name)
+
+    def set_key(self, key_type):
+        self._add_parser_con_arguments()
+
+        self.parser.add_argument("new_key_file", metavar="key",
+            type=argparse.FileType('rb'),
+            help="specify the new key file")
+
+        self.parser.add_argument(
+           "--curr-fw-key", dest="curr_fw_key_file", metavar="CURRENT_FW_KEY",
+            type=argparse.FileType('rb'),
+            required=False, help="specify the current fw key file")
+
+        self.parser.add_argument(
+           "--curr-rv-key", dest="curr_rv_key_file", metavar="CURRENT_RV_KEY",
+            type=argparse.FileType('rb'),
+            required=False, help="specify the current revocation key file")
+
+        self.args = self.parser.parse_args()
+        cmd = self._command()
+
+        # Read the content of the new key file
+        self.args.new_key_file.seek(0, os.SEEK_END)
+        # Check if the size is correct
+        if self.args.new_key_file.tell() != 32:
+            self.args.new_key_file.close()
+            raise QMManageException("Incorrect length of the new key")
+
+        self.args.new_key_file.seek(0, os.SEEK_SET)
+        new_key_content = self.args.new_key_file.read()
+
+        # Read the content of the current fw key file
+        if self.args.curr_fw_key_file:
+            self.args.curr_fw_key_file.seek(0, os.SEEK_END)
+            # Check if the size is correct
+            if self.args.curr_fw_key_file.tell() != 32:
+                self.args.curr_fw_key_file.close()
+                raise QMManageException("Incorrect length of the current fw  \
+                                        key")
+
+            self.args.curr_fw_key_file.seek(0, os.SEEK_SET)
+            curr_fw_key_content = self.args.curr_fw_key_file.read()
+        else:
+            curr_fw_key_content = ""
+
+        # Read the content of the current revocation key file
+        if self.args.curr_rv_key_file:
+            self.args.curr_rv_key_file.seek(0, os.SEEK_END)
+            # Check if the size is correct
+            if self.args.curr_rv_key_file.tell() != 32:
+                self.args.curr_rv_key_file.close()
+                raise QMManageException("Incorrect length of the current rv  \
+                                        key")
+
+            self.args.curr_rv_key_file.seek(0, os.SEEK_SET)
+            curr_rv_key_content = self.args.curr_rv_key_file.read()
+        else:
+            curr_rv_key_content = ""
+
+        request = qmfmlib.QFMSetKey(new_key_content,
+                                    curr_fw_key_content,
+                                    curr_rv_key_content,
+                                    key_type).content
+
+        image = qmfmlib.DFUImage()
+        data = image.add_suffix(request)
+        # Write output file.
+        file_name = self._create_temp(data)
+        print("Programming new device key...\t\t", end="")
+        retv = self.call_tools(cmd + ["-D", file_name, "-a", "0"])
+        if retv.status != 0:
+            print("[FAIL]")
+
+            if retv.status == DFU_STATUS_ERR_TARGET:
+                print("key provisioning is not supported by the device.")
+            elif retv.status == DFU_STATUS_ERR_VENDOR:
+                print("Key verification failed.")
+            else:
+                print("Unknown error. Run in verbose mode for more info.")
+
+            os.remove(file_name)
+            exit(1)
+
+        print("[DONE]")
+        os.remove(file_name)
+        self.args.new_key_file.close()
+
+        if self.args.curr_fw_key_file:
+            self.args.curr_fw_key_file.close()
+
+    def set_rv_key(self):
+        self.set_key(qmfmlib.QFMRequest.REQ_SET_RV_KEY)
+
+    def set_fw_key(self):
+        self.set_key(qmfmlib.QFMRequest.REQ_SET_FW_KEY)
 
 
 def main():
@@ -229,6 +351,10 @@ def main():
         exit(0)
 
     choices_desc = "possible commands:\n" + \
+                   "  set-fw-key    set the HMAC fw key used for firmware \
+                                    authentication\n" + \
+                   "  set-rv-key    set the HMAC rv key used for firmware \
+                                    authentication\n" + \
                    "  erase         erase all applications\n" + \
                    "  info          retrieve device information\n" + \
                    "  list          retrieve list of connected devices"
@@ -240,7 +366,8 @@ def main():
     # Note: Version is not parsed by argparse if --version is not added.
     _parser.add_argument('--version', action='version', version=version)
     _parser.add_argument("cmd", help="run specific command",
-                         choices=['info', 'erase', 'list'])
+                         choices=['set-fw-key', 'set-rv-key', 'info', 'erase',
+                                  'list'])
     group = _parser.add_mutually_exclusive_group()
     group.add_argument("-q", "--quiet", action="store_true",
                        help="suppress non-error messages")
@@ -251,7 +378,6 @@ def main():
     args = _parser.parse_args(sys.argv[1:2])
 
     manager = QMManage(_parser)
-
     if args.cmd == "info":
         manager.info()
         exit(0)
@@ -263,6 +389,15 @@ def main():
     if args.cmd == "erase":
         manager.erase()
         exit(0)
+
+    if args.cmd == "set-rv-key":
+        manager.set_rv_key()
+        exit(0)
+
+    if args.cmd == "set-fw-key":
+        manager.set_fw_key()
+        exit(0)
+
     exit(1)
 
 if __name__ == "__main__":

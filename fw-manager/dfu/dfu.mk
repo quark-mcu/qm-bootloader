@@ -29,17 +29,10 @@
 
 ### Variables
 DFU_DIR = $(FM_DIR)/dfu
-OBJ_DIRS += $(DFU_DIR)/$(BUILD)/$(SOC)/$(TARGET)
 DFU_SOURCES = $(wildcard $(DFU_DIR)/*.c)
-DFU_OBJ_DIR = $(DFU_DIR)/$(BUILD)/$(SOC)/$(TARGET)/$(OBJ)
+DFU_OBJ_DIR = $(FM_OBJ_DIR)/dfu
 DFU_OBJS = $(addprefix $(DFU_OBJ_DIR)/,$(notdir $(DFU_SOURCES:.c=.o)))
 FM_OBJS += $(DFU_OBJS)
-GENERATED_DIRS += $(DFU_DIR)/$(BUILD)
-
-### Build C files
-$(DFU_OBJ_DIR)/%.o: $(DFU_DIR)/%.c qmsi
-	$(call mkdir, $(DFU_OBJ_DIR))
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 include $(DFU_DIR)/core/dfu_core.mk
 # Include support for UART/DFU

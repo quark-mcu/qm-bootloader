@@ -79,14 +79,18 @@ int dfu_detach(uint16_t timeout_ms);
 /**
  * Handle a DFU_DNLOAD request
  *
- * @param[in] bock_num The block sequence number
- * @param[in] data     The buffer containing the block data
+ * @param[in] bock_num The block sequence number.
+ * @param[in] data     The buffer containing the block data.
  * @param[in] len      The size of the block, i.e., the amount of data in the
- * 		       buffer
+ * 		       buffer.
  *
- * @return  0 if no error has occurred, an error code otherwise
+ * @note For security reasons (i.e., the DFU block may contain sensitive data
+ *       like a key update request with new authentication keys), the 'data'
+ *       buffer passed as input may be zeroed at the end of the processing.
+ *
+ * @return 0 if no error has occurred, an error code otherwise.
  */
-int dfu_process_dnload(uint16_t block_num, const uint8_t *data, uint16_t len);
+int dfu_process_dnload(uint16_t block_num, uint8_t *data, uint16_t len);
 
 /**
  * Handle a DFU_UPLOAD request

@@ -50,7 +50,7 @@
  *
  * @param[out] ch A pointer to the variable where to store the read character.
  * 		  In case of error, the current value of the pointed variable
- * 		  is not modified.
+ * 		  is not modified. The pointer must not be null.
  *
  * @return 0 on success, negative error code otherwise.
  * @retval -ETIME in case of timeout.
@@ -63,7 +63,7 @@ int xmodem_io_getc(uint8_t *ch);
  *
  * This function must be blocking.
  *
- * @param[in] ch A pointer to the character to be written.
+ * @param[in] ch A pointer to the character to be written. Must not be null.
  *
  * @return 0 on success, negative error code otherwise.
  */

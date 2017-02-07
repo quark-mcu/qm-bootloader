@@ -1,8 +1,3 @@
-#!/usr/bin/env python
-# @file This file assembles ROM components into an 8kB ROM image.
-# Examples of ROM components are the BootROM code, manufacturing data, boot
-# services table, etc.
-
 #
 # Copyright (c) 2016, Intel Corporation
 # All rights reserved.
@@ -32,43 +27,31 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
-import os
-import sys
-import struct
+ifeq ($(TINYCRYPT_SRC_DIR),)
+$(error TINYCRYPT_SRC_DIR is not defined)
+endif
+$(info TINYCRYPT_SRC_DIR = $(TINYCRYPT_SRC_DIR))
 
-# Command line parameters
-romCodeFilename = sys.argv[1]
-outputFilename = sys.argv[2]
+### Variables
+CRYPT_LIB_SRC_DIR = $(TINYCRYPT_SRC_DIR)/lib/source
+CRYPT_LIB_INC_DIR = $(TINYCRYPT_SRC_DIR)/lib/include
+CRYPT_SOURCES = $(wildcard $(CRYPT_LIB_SRC_DIR)/*.c)
+CRYPT_OBJ_DIR = $(FM_OBJ_DIR)/tinycrypt
+CRYPT_OBJS = $(addprefix $(CRYPT_OBJ_DIR)/,$(notdir $(CRYPT_SOURCES:.c=.o)))
 
-imageFile = open(outputFilename, 'wb+')
-romCodeFile = open(romCodeFilename, 'rb').read()
-imageLen = 0x2000  # ROM size for Quark Microcontroller D2000 is 8 KB (0x2000)
-resetVectorAddr = 0x150
+### Flags
+CFLAGS += -I$(CRYPT_LIB_INC_DIR)
 
-offset = 0
+### Build C files
+$(CRYPT_OBJ_DIR)/%.o: $(CRYPT_LIB_SRC_DIR)/%.c
+	$(call mkdir, $(CRYPT_OBJ_DIR))
+	$(CC) $(CFLAGS) -c -o $@ $<
 
-# Pad bottom of ROM up to reset vector with 0xFF.  This area contains the OTP
-# lock bit and manufacturing data (currently empty)
-for offset in range(resetVectorAddr):
-    imageFile.write(b'\xFF')
-    offset += 1
-
-# Write ROM binary
-imageFile.write(romCodeFile)
-romCodeLen = len(romCodeFile)
-offset += romCodeLen
-
-# Write 0xFF padding (empty area)
-padLen = imageLen - offset
-for romLenCount in range(padLen):
-    imageFile.write(b'\xFF')
-
-imageFile.close()
-
-print('. . . . . . . . . . . . . . . . . . . . . . . . . . . .')
-print('Image size = ' + hex(imageLen))
-print('Manufacturing Data area size = ' + hex(resetVectorAddr))
-print('ROM binary size = ' + hex(romCodeLen))
-print('Padding size = ' + hex(padLen))
-print('ROM binary start offset = ' + hex(resetVectorAddr))
-print('. . . . . . . . . . . . . . . . . . . . . . . . . . . .')
+### Add TinyCrypt objects to the list of DM objects
+ifeq ($(ENABLE_FIRMWARE_MANAGER_AUTH),1)
+# Define the suffix to be used in binaries (1st-stage and 2nd-stage) compiled
+# with ENABLE_FIRMWARE_MANAGER_AUTH=1
+FM_AUTH_SUFFIX = _hmac
+CFLAGS+= -DENABLE_FIRMWARE_MANAGER_AUTH=1
+FM_OBJS += $(CRYPT_OBJS)
+endif

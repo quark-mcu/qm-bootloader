@@ -72,6 +72,7 @@ All Documentation about the bootloader can be found in the doc folder:
 - `Bootloader flow      <doc/boot_flow.rst>`__
 - `Firmware Manager User Guide`_
 - `Firmware Manager Overview`_
+- `Authenticated Firmware Upgrade`_
 
 Building
 ********
@@ -111,6 +112,7 @@ The bootloader makefile supports the following build parameters:
         - SOC
         - ENABLE_FIRMWARE_MANAGER
         - ENABLE_RESTORE_CONTEXT
+        - ENABLE_FLASH_WRITE_PROTECTION
 
 Target SoC selection
 --------------------
@@ -135,9 +137,25 @@ Firmware Management
 -------------------
 
 ENABLE_FIRMWARE_MANAGER is used to enable firmware management inside of the
-bootloader,
+bootloader.
 
-By default, firmware management mode is not enabled.
+To disable firmware manager:
+
+``make ENABLE_FIRMWARE_MANAGER=none``
+
+To enable firmware manager over uart:
+
+``make ENABLE_FIRMWARE_MANAGER=uart``
+
+To enable firmware manager over usb:
+
+``make ENABLE_FIRMWARE_MANAGER=2nd-stage``
+
+In order to use the firmware manager over usb a 2nd-stage bootloader must be
+flashed, more information about this can be found in `Authenticated Firmware
+Upgrade`_.
+
+By default, firmware management mode is enabled over uart.
 
 More info on building and flashing an application using the firmware management
 mode can be found in the `Firmware Manager User Guide`_.
@@ -156,6 +174,16 @@ The context of the Quark D2000 is restored by the hw. For that reason,
 the ENABLE_RESTORE_CONTEXT option has no effect on Quark D2000 SoC.
 
 By default, context save and restore management is enabled on Quark SE.
+
+Flash write protection
+----------------------
+
+By default the bootloader write-protects all the SoC flash memory to avoid any
+possible modification of the firmware.
+
+It's possible to deactivate this feature by compiling the bootloader with
+'ENABLE_FLASH_WRITE_PROTECTION=0'. This, however, will render the SoC vulnerable
+to malware gaining access to the firmware and overwriting it.
 
 Flashing
 ========
@@ -203,3 +231,4 @@ device:
 .. Links
 .. _`Firmware Manager User Guide`: doc/fw-manager-user-guide.rst
 .. _`Firmware Manager Overview`: doc/fw-manager-overview.rst
+.. _`Authenticated Firmware Upgrade`: doc/authenticated_firmware_upgrade

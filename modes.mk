@@ -1,5 +1,4 @@
-#!/usr/bin/python -tt
-# -*- coding: utf-8 -*-
+#
 # Copyright (c) 2016, Intel Corporation
 # All rights reserved.
 #
@@ -26,33 +25,32 @@
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
+#
 
-"""
-Quark Microcontroller Firmware Management Python Library.
+# List supported modes
+SUPPORTED_SOCS = quark_se \
+				 quark_d2000
 
-Provides:
+SUPPORTED_BUILDS = debug \
+				   release
 
-+--------------------+--------------------------------------------------------+
-| :class:`QFUHeader` | A class to manage the specific QM image header.        |
-+--------------------+--------------------------------------------------------+
-| :class:`QFUImage`  | A class to create the specific QM firmware image.      |
-+--------------------+--------------------------------------------------------+
+SUPPORTED_FM_MODE_quark_se = none \
+			     uart \
+			     2nd-stage
 
-Example usage::
+SUPPORTED_FM_MODE_quark_d2000 = none \
+				uart
 
-    import qmfmlib
+SUPPORTED_CSTD = c99 \
+		 		 c90
 
-    header = qmfmlib.QFUHeader()
-    header.id_vendor = 0x0143
-    header.print_info()
+SUPPORTED_FM_AUTH = 0 \
+					1
 
-    image = qmfmlib.QFUImage()
-    image.make(header, file_handler)
-    # write image.content to a file
-"""
-
-from qmfmlib.qfu import QFUHeader, QFUImage, QFUException
-from qmfmlib.dfu import DFUImage, DFUException
-from qmfmlib.qfm import QFMRequest, QFMSetKey, QFMResponse, QFMSysInfo, QFMException
-
-__version__ = "1.4"
+# Exceptions
+ifeq ($(ENABLE_FIRMWARE_MANAGER),uart)
+ifeq ($(BUILD),debug)
+$(error "Cannot combine (first-stage) Firmware Management over UART with \
+	debug build due to footprint constraints.")
+endif
+endif

@@ -29,15 +29,7 @@
 
 ### Variables
 QFU_DIR = $(FM_DIR)/qfu
-QFU_BUILD_DIR = $(QFU_DIR)/$(BUILD)/$(SOC)/$(TARGET)
-OBJ_DIRS += $(QFU_BUILD_DIR)
-QFU_OBJ_DIR = $(QFU_BUILD_DIR)/$(OBJ)
+QFU_OBJ_DIR = $(FM_OBJ_DIR)/qfu
 QFU_SOURCES = $(wildcard $(QFU_DIR)/*.c)
 QFU_OBJS = $(addprefix $(QFU_OBJ_DIR)/,$(notdir $(QFU_SOURCES:.c=.o)))
 FM_OBJS += $(QFU_OBJS)
-GENERATED_DIRS += $(QFU_DIR)/$(BUILD)
-
-### Build C files
-$(QFU_OBJ_DIR)/%.o: $(QFU_DIR)/%.c qmsi
-	$(call mkdir, $(QFU_OBJ_DIR))
-	$(CC) $(CFLAGS) -c -o $@ $<

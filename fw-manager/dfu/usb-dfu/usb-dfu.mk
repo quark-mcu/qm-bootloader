@@ -32,21 +32,14 @@ ifeq ($(SOC),quark_se)
 
 ### Variables
 USB_DFU_DIR = $(DFU_DIR)/usb-dfu
-OBJ_DIRS += $(USB_DFU_DIR)/$(BUILD)/$(SOC)/$(TARGET)
 USB_DFU_SOURCES = $(wildcard $(USB_DFU_DIR)/*.c)
-USB_DFU_OBJ_DIR = $(USB_DFU_DIR)/$(BUILD)/$(SOC)/$(TARGET)/$(OBJ)
+USB_DFU_OBJ_DIR = $(DFU_OBJ_DIR)/usb-dfu
 USB_DFU_OBJS = $(addprefix $(USB_DFU_OBJ_DIR)/,                             \
 					$(notdir $(USB_DFU_SOURCES:.c=.o)))
-GENERATED_DIRS += $(USB_DFU_DIR)/$(BUILD)
 
 # Add USB/DFU objects to the list of FM objects only if required
 ifeq ($(ENABLE_FIRMWARE_MANAGER),usb)
 FM_OBJS += $(USB_DFU_OBJS)
 endif
-
-### Build C files
-$(USB_DFU_OBJ_DIR)/%.o: $(USB_DFU_DIR)/%.c qmsi
-	$(call mkdir, $(USB_DFU_OBJ_DIR))
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 endif

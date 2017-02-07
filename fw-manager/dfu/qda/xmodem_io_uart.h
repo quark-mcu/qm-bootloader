@@ -27,7 +27,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef __XMODEM_IO_UART_H__
+#define __XMODEM_IO_UART_H__
+
 /**
  * Initialize the XMODEM I/O UART layer.
  */
-void xmodem_io_uart_init();
+void xmodem_io_uart_init(void);
+
+#endif /* __XMODEM_IO_UART_H__ */

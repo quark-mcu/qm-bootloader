@@ -34,8 +34,14 @@
 
 .extern rom_startup
 .extern __stack_start
+.extern __gdt_ram_start
 
-.text
+#
+# Put the following procedure in the .text.entry section to ensure that the
+# linker scripts puts it at the beginning of the ROM memory region (as defined
+# in the Quark D2000 linker script), i.e., the reset vector for Quark D2000.
+#
+.section .text.entry
 #----------------------------------------------------------------------------
 #
 # Procedure:	_rom_start
@@ -101,6 +107,11 @@ _rom_start:
 	.long protected_mode_entry_linear_address
 	.byte 0x66,0x2e,0xff,0x2c	#jmp   %cs:(%esi)
 
+#
+# All other procedures can be put wherever the linker likes, so we assign them
+# to the generic .text section.
+#
+.text
 #----------------------------------------------------------------------------
 #
 # Procedure:	protected_mode_entry
@@ -134,6 +145,17 @@ protected_mode_entry:
 	#
 	movl $__stack_start, %esp
 
+	#
+	# Copy GDT table to RAM, and load it again.
+	#
+	movl $gdt_table,%esi
+        movl $__gdt_ram_start,%edi
+        movl $GDT_SIZE,%ecx
+        movl %ecx,%eax
+        rep movsb
+        movw %ax,(%edi)
+        movl $__gdt_ram_start,2(%edi)
+        lgdtl (%edi)
 
 	#
 	# Jump to C entry point
@@ -160,10 +182,7 @@ protected_mode_entry:
 #	Global Descriptor Table (GDT) before the switch to 32 bit mode
 #
 #----------------------------------------------------------------------------
-Function:
-	.long gdt_table
-	.align 16
-
+.align 8
 gdt_table:
 	#
 	# GDT entry 0: Not used
@@ -175,6 +194,11 @@ gdt_table:
 	#
 	# GDT entry 1: Linear code segment descriptor
 	#
+	# We keep the accessed bit (A) in the type field set for all the
+	# segment descriptors so we can have the GDT placed in ROM.
+	# This complies with the recommendation from the Intel IA manual,
+	# Vol. 3A, section 3.4.5.1, last paragraph.
+	#
 	.equ LINEAR_CODE_SEL, . - gdt_table
 	.word 0xFFFF	# limit 0FFFFh
 	.word 0		# base 0
@@ -185,6 +209,11 @@ gdt_table:
 
 	#
 	# GDT entry 2: System data segment descriptor
+	#
+	# We keep the accessed bit (A) in the type field set for all the
+	# segment descriptors so we can have the GDT placed in ROM.
+	# This complies with the recommendation from the Intel IA manual,
+	# Vol. 3A, section 3.4.5.1, last paragraph.
 	#
 	.equ SYS_DATA_SEL, . - gdt_table
 	.word 0xFFFF	# limit 0FFFFh

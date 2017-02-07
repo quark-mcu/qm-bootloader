@@ -86,7 +86,7 @@ platform, you must install a ROM with such functionality enabled. To do so,
 perform the following steps:
 
 * Get the latest TinyCrypt code from https://github.com/01org/tinycrypt.
-* Checkout tag v0.2.0 and export the following environment variable::
+* Checkout tag v0.2.5 and export the following environment variable::
 
     export TINYCRYPT_SRC_DIR=/PATH/TO/SOURCE/tinycrypt
 
@@ -100,7 +100,7 @@ Enabling UART functionality
 
   Enable the Firmware Manager for UART::
 
-    make rom SOC=quark_se ENABLE_FIRMWARE_MANAGER=uart
+    make rom SOC=quark_se ENABLE_FIRMWARE_MANAGER=uart ENABLE_FIRMWARE_MANAGER_AUTH=0
 
 * Flash the new rom image to the target::
 
@@ -123,7 +123,7 @@ A second stage bootloader is required, in order to use the USB dfu-util.
 
 * Compile the 2nd stage bootloader::
 
-    make -C 2nd-stage
+    make -C 2nd-stage ENABLE_FIRMWARE_MANAGER_AUTH=0
 
 * Flash the 2nd stage bootloder to address `0x4005b000`::
 
@@ -156,13 +156,15 @@ The SoC can be ``quark_se`` or ``quark_d2000`` depending on the used soc. The
 target can be ``x86`` or ``sensor`` depending on the used core.
 
 
+.. note:: 'make flash' only supports unauthenticated flashing
+
 Make flash example
 ++++++++++++++++++
 
 This example will show how to build and flash the blinky example for the
 Quark SE C1000 x86 core. For UART, the used serial device is assumed to be
 ``/dev/tty0``; while for USB, the device Vendor ID and Product ID are assumed
-to be ``8086`` and ``48FC`` respectively.
+to be ``8086`` and ``C100`` respectively.
 
 * Change the directory to the QMSI base directory::
 
@@ -174,7 +176,7 @@ to be ``8086`` and ``48FC`` respectively.
 
 - For the USB connection::
 
-    make -C examples/blinky flash SOC=quark_se TARGET=x86 USB_DEVICE=8086:48FC
+    make -C examples/blinky flash SOC=quark_se TARGET=x86 USB_DEVICE=8086:C100
 
 Step by step process (without make flash)
 -----------------------------------------
@@ -226,7 +228,7 @@ Step by step example
 This example will show how to build and flash the blinky example for the Quark
 SE C1000 x86 core.  For UART, the used serial device is assumed to be
 ``/dev/tty0``; while for USB, the device Vendor ID and Product ID are assumed
-to be ``8086`` and ``48FC`` respectively.
+to be ``8086`` and ``C100`` respectively.
 
 * Change the directory to the QMSI base directory::
 
@@ -263,7 +265,7 @@ to be ``8086`` and ``48FC`` respectively.
 
   - Using a USB connection::
 
-      dfu-util -D examples/blinky/release/quark_se/x86/bin/blinky.bin.dfu -d 8086:48FC -R -a 1
+      dfu-util -D examples/blinky/release/quark_se/x86/bin/blinky.bin.dfu -d 8086:C100 -R -a 1
 
 
 .. note:: The path of the binary may differ when building a D2000 or a

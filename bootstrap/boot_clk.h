@@ -33,6 +33,7 @@
 #include "qm_common.h"
 #include "qm_soc_regs.h"
 #include "clk.h"
+#include "flash_layout.h"
 
 /**
  * Bootloader clocking functions.
@@ -57,21 +58,32 @@
 int boot_clk_hyb_set_mode(const clk_sys_mode_t mode, const clk_sys_div_t div);
 
 /**
- * Populate the shadowed trim codes in the data region of flash.
+ * Check if trim codes are already in flash.
+ * If not they are either copied from OTP to
+ * flash, or - if not available in OTP -
+ * computed and stored in flash.
  *
- * For each frequency, this function checks whether
- * the corresponding trim code is already in flash.
+ * This function is expected to be called only during
+ * the first boot if firmware manager is not enabled.
+ */
+void boot_clk_trim_code_check_and_setup(void);
+
+/**
+ * Populate output parameter with trim codes.
  *
- * If not, it checks whether the code is in OTP.
- * If so, the code is copied in flash,
- * otherwise it is computed and eventually stored in flash.
+ * For each frequency. this function checks whether
+ * the corresponding code is in OTP. Otherwise it
+ * is directly computed.
  *
- * This function is expected to be called only during the first boot.
+ * This function is expected to be called only during
+ * the first boot if firmware manager is enabled.
+ *
+ * @param[out] data where trim codes are stored into.
  *
  * @return Resulting status code.
  * @retval 0 if successful.
  */
-int boot_clk_trim_code_setup(void);
+int boot_clk_trim_code_compute(qm_flash_data_trim_t *const ptr_trim_codes);
 
 /**
  * @}

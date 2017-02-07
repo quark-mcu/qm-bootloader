@@ -36,7 +36,6 @@
 #include "qm_isr.h"
 #include "qm_pinmux.h"
 
-#include "fw-manager.h"
 #include "fw-manager_config.h"
 #include "fm_entry.h"
 #include "dfu/qda/qda.h"
@@ -47,13 +46,20 @@
 #define FM_GPIO_PORT QM_GPIO_0
 #endif
 
+#if FM_CONFIG_ENABLE_GPIO_PIN
+#define fm_gpio_get_state(state_ptr)                                           \
+	qm_gpio_read_pin(FM_GPIO_PORT, FM_CONFIG_GPIO_PIN, state_ptr)
+#else
+#define fm_gpio_get_state(state_ptr) (*state_ptr = QM_GPIO_HIGH)
+#endif
+
 void fm_entry_uart(void)
 {
 	qm_gpio_state_t state;
 
 	/*
-	 * qda_init() implicitly init the HW required by XMODEM (i.e., UART and
-	 * PIC timer) and the DFU state machine
+	 * qda_init() implicitly initializes the HW required by XMODEM (i.e.,
+	 * UART and PIC timer) and the DFU state machine.
 	 */
 	qda_init();
 	do {
@@ -62,7 +68,7 @@ void fm_entry_uart(void)
 		 * for 10 seconds.
 		 */
 		qda_receive_loop();
-		qm_gpio_read_pin(FM_GPIO_PORT, FM_CONFIG_GPIO_PIN, &state);
+		fm_gpio_get_state(&state);
 	} while (state == QM_GPIO_LOW);
 	/*
 	 * Cold reboot in order to restore the default system configuration

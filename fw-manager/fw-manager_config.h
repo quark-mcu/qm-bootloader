@@ -30,9 +30,12 @@
 #ifndef __FW_MANAGER_CONFIG_H__
 #define __FW_MANAGER_CONFIG_H__
 
-/** Dual-bank configuration flag. */
-/* NOTE: consider moving this to a bl_config.h file or rename this file */
-#define BL_CONFIG_DUAL_BANK (false)
+#include "qm_soc_regs.h"
+
+/*Enforce default PID and VID*/
+#define FM_CFG_ENFORCE_VID (0)
+#define FM_CFG_ENFORCE_APP_PID (0)
+#define FM_CFG_ENFORCE_DFU_PID (0)
 
 /*
  * FM UART comm parameters.
@@ -46,6 +49,8 @@
 #define FM_CONFIG_UART_BAUD_DIV (BOOTROM_UART_115200)
 
 /* GPIO pin for FM requests. */
+#define FM_CONFIG_ENABLE_GPIO_PIN (1)
+
 #if (QUARK_SE)
 /*
  * Intel(R) Quark(TM) Microcontroller SE Development Platform Button 0 / Pin
@@ -60,5 +65,34 @@
  */
 #define FM_CONFIG_GPIO_PIN (2)
 #endif
+
+/* The size of a QFU block in number of pages */
+#if (QUARK_SE)
+#define QFU_BLOCK_SIZE_PAGES (2)
+#elif(QUARK_D2000)
+#define QFU_BLOCK_SIZE_PAGES (1)
+#endif
+#define QFU_BLOCK_SIZE (QM_FLASH_PAGE_SIZE_BYTES * QFU_BLOCK_SIZE_PAGES)
+
+/**
+ * DFU configuration defines.
+ */
+
+/* These are exposed in Device Descriptors. */
+/* Vendor ID. */
+#define DFU_CFG_VID (0x8086)
+
+/* Product ID in run-time. */
+#define DFU_CFG_PID (0x00DA)
+
+/* Product ID in DFU mode. */
+#if (QUARK_SE)
+#define DFU_CFG_PID_DFU (0xC100)
+#else
+#define DFU_CFG_PID_DFU (0xD200)
+#endif
+
+/* Device release number (as a BCD). */
+#define DFU_CFG_DEV_BCD (0x0100)
 
 #endif /* __FW_MANAGER_CONFIG_H__ */

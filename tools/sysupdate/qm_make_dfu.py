@@ -46,6 +46,7 @@ Optional Arguments:
     -o OUTFILE     specify the output file name [default: <INFILE>.dfu]
     -q, --quiet    suppress non-error messages
     -v, --verbose  increase verbosity
+    --sha256       add SHA-256 to header
     -c CFILE       specify the configuration file (C-header format)
     -p PART        target partition number [default: 0]
     --block-size   size of one dfu block [default: 2048]
@@ -55,7 +56,7 @@ files.
 
 from __future__ import print_function, division, absolute_import
 import argparse
-
+import os
 import qmfmlib
 
 __version__ = "0.1"
@@ -74,6 +75,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-o", default=False, metavar="OUTFILE", dest="output_file",
         help="specify the output file name [default: <INFILE>.dfu]")
+    parser.add_argument(
+        "--sha256", default=False, action="store_true",
+        help="add SHA-256 to header")
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "-q", "--quiet", action="store_true",
@@ -85,11 +89,34 @@ if __name__ == "__main__":
         "-c", metavar="CFILE", dest="config_file", type=argparse.FileType('r'),
         help="specify the configuration file (C-header format)")
     parser.add_argument(
-        "-p", metavar="PART", type=int, dest="partition", default=0,
+        "-p", metavar="PART", type=int, dest="partition", required=True,
         help="target partition number [default: %(default)s]")
     parser.add_argument(
         "--block-size", metavar="SIZE", type=int, dest="block_size",
-        default=2048, help="dfu block size [default: %(default)s]")
+        default=None, help="dfu block size")
+    parser.add_argument(
+        "--soc", metavar="SOC", type=str, dest="soc",
+        default="quark_se", help="Select the used target SoC[default: \
+        %(default)s]" ,choices=['quark_se', 'quark_d2000'])
+    parser.add_argument(
+        "--key", metavar="KEY", type=argparse.FileType('r'), dest="key_file",
+        help="sign the image using the specified HMAC key")
+    # Configuration parameters
+    parser.add_argument(
+        "--vid", metavar="VID", type=int, dest="vid",
+        default= None, help="The vendor id of the device")
+    parser.add_argument(
+        "--app-pid", metavar="APP_PID", type=int, dest="app_pid",
+        default= None, help="The product id of the application")
+    parser.add_argument(
+        "--dfu-pid", metavar="DFU_PID", type=int, dest="dfu_pid",
+        default= None, help="The product id of the bootloader")
+    parser.add_argument(
+        "--app-version", metavar="APP_VERSION", type=int, dest="app_version",
+        default= None, help="The version of the application")
+    parser.add_argument(
+        "--svn", metavar="SVN", type=int, dest="svn", default= None,
+        help="The security version number")
 
     args = parser.parse_args()
 
@@ -100,7 +127,6 @@ if __name__ == "__main__":
     header = qmfmlib.QFUHeader()
     header.partition_id = int(args.partition)
     header.padding = True
-    header.block_size = args.block_size
 
     # Populate header information from configuration file. This will overwrite
     # previous defined parameters.
@@ -110,12 +136,23 @@ if __name__ == "__main__":
             args.config_file.close()
         except IOError as error:
             parser.error(error)
-
+    header.overwrite_config_parameters(args)
     # Create image data for output file.
     data = None
     try:
         image = qmfmlib.QFUImage()
-        data = image.make(header, args.input_file)
+        add_sha256 = args.sha256
+        if args.key_file:
+            args.key_file.seek(0, os.SEEK_SET)
+            key_data = args.key_file.read()
+            args.key_file.close()
+        else:
+            key_data = None
+
+        # Read input file size.
+        file_content = args.input_file.read()
+        data = image.make(header, file_content, key_data, add_sha256)
+
         args.input_file.close()
     except IOError as error:
         parser.error(error)

@@ -42,10 +42,6 @@
 #define soc_boot_init_interrupt_controller(...) apic_init(__VA_ARGS__)
 
 /* CPU halt function (used by the double fault handler) */
-#define soc_boot_halt_cpu(...) power_cpu_c1(__VA_ARGS__)
-
-/* Sleep function called when there is no application to run */
-/* TODO: change this to power_soc_sleep() once OpenOCD bug is fixed */
-#define soc_boot_sleep(...) power_cpu_c2(__VA_ARGS__)
+#define soc_boot_halt_cpu(...) qm_power_cpu_c1(__VA_ARGS__)
 
 #endif /* __SOC_BOOT_H__ */

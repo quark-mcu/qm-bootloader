@@ -28,8 +28,8 @@
  */
 
 #include "qm_soc_regs.h"
-
 #include "qm_interrupt.h"
+#include "qm_interrupt_router.h"
 #include "qm_isr.h"
 
 #include "clk.h"
@@ -53,11 +53,12 @@ int fm_entry_usb(void)
 	clk_sys_udelay(50000);
 	usb_dfu_start();
 
-	qm_irq_request(QM_IRQ_USB_0_INT, qm_usb_0_isr);
+	QM_IR_UNMASK_INT(QM_IRQ_USB_0_INT);
+	QM_IRQ_REQUEST(QM_IRQ_USB_0_INT, qm_usb_0_isr);
 
 	/*
 	 * NOTE: consider making this loop smarter by moving the timeout logic
-	 * here.
+	 * in the USB/DFU module here.
 	 */
 	while (FOREVER()) {
 		/* do nothing */

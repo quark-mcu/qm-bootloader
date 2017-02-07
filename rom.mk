@@ -30,6 +30,9 @@
 # This file defines the 'rom' target, to build the first stage bootloader
 # (a.k.a. the ROM).
 
+# Define where object files will be put
+BASE_OBJ_DIR = $(BUILD_DIR)/$(BUILD)/$(SOC)/$(OBJ)
+
 # Add common bootstrap objects to the list of ROM objects
 include $(BL_BASE_DIR)/bootstrap/boot.mk
 ROM_OBJS += $(BOOT_OBJS)
@@ -40,11 +43,7 @@ ROM_OBJS += $(BOOT_SOC_OBJS)
 ### Variables
 # The directory where the ROM binary will be put
 ROM_BUILD_DIR = $(BUILD_DIR)/$(BUILD)/$(SOC)/rom
-OBJ_DIRS += $(ROM_BUILD_DIR)
-
-# The preliminary ROM binary (the final one will be created by the makeRomImage
-# python script, starting from this one)
-STARTUP_BIN = $(BOOT_SOC_DIR)/$(BUILD)/$(OBJ)/rom_startup.bin
+OBJ_DIRS += $(BUILD_DIR)/$(BUILD)/$(SOC)
 
 ROM_LINKER_FILE ?= $(BOOT_SOC_DIR)/rom.ld
 
@@ -62,10 +61,8 @@ ifeq ($(SOC),quark_se)
   endif
 endif
 
-# Always include fw-manager (FM) makefile to ensure that
-# clean/realclean/distclean works properly, i.e., also delete FM objects and
-# build directories (since FM object dirs are added to OBJ_DIRS and
-# GENERATED_DIRS).
+# Always include fw-manager (FM) makefile to ensure accessibility to its header
+# files
 include $(BL_BASE_DIR)/fw-manager/fw-manager.mk
 
 # Compile FM code (i.e., add FM objects as rom dependencies) only if
@@ -89,25 +86,24 @@ endif
 # Define ROM file name
 # (Suffix is built on multiple lines to respect 80 chars limit)
 ROM_SUFFIX := $(ROM_SUFFIX_FM)
+ROM_SUFFIX := $(ROM_SUFFIX)$(FM_AUTH_SUFFIX)
 ROM_SUFFIX := $(ROM_SUFFIX)$(ROM_SUFFIX_NO_RESTORE_CONTEXT)
-ROM = $(ROM_BUILD_DIR)/$(SOC)_rom$(ROM_SUFFIX).bin
+ROM_NAME := $(SOC)_rom$(ROM_SUFFIX)
+ROM = $(ROM_BUILD_DIR)/$(ROM_NAME).bin
 
 .PHONY: rom
 
 rom: $(ROM)
 
-### Make 8kB ROM image
-$(ROM): $(STARTUP_BIN)
-	$(call mkdir, $(ROM_BUILD_DIR))
-	python $(BOOT_SOC_DIR)/makeRomImage.py $(STARTUP_BIN) $(ROM)
-
 ### Link STARTUP.elf and get raw binary
-$(STARTUP_BIN): $(ROM_OBJS) qmsi
+$(ROM): $(ROM_OBJS) qmsi
+	$(call mkdir, $(ROM_BUILD_DIR))
 	$(LD) $(LDFLAGS) -Xlinker -T$(ROM_LINKER_FILE) \
 		-Xlinker -A$(OUTPUT_ARCH) \
 		-Xlinker --oformat$(OUTPUT_FORMAT) \
-		-Xlinker -Map=$(STARTUP_BIN).map \
-		-o $(STARTUP_BIN).elf $(ROM_OBJS) $(LDLIBS)
-	$(SIZE) $(STARTUP_BIN).elf
-	$(OBJCOPY) --gap-fill 0xFF -O binary $(STARTUP_BIN).elf $@
+		-Xlinker -Map=$(BOOT_SOC_OBJ_DIR)/$(ROM_NAME).map \
+		-o $(BOOT_SOC_OBJ_DIR)/$(ROM_NAME).elf $(ROM_OBJS) $(LDLIBS)
+	$(SIZE) $(BOOT_SOC_OBJ_DIR)/$(ROM_NAME).elf
+	$(OBJCOPY) --gap-fill 0xFF \
+		    -O binary $(BOOT_SOC_OBJ_DIR)/$(ROM_NAME).elf $@
 

@@ -27,13 +27,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <string.h>
+
 #include "qm_common.h"
 
-#include "../dfu.h"
-#include "../dfu_config.h"
-#include "dfu_core.h"
-#include "../../qfu/qfu.h"
 #include "../../qfm/qfm.h"
+#include "../../qfu/qfu.h"
+#include "../dfu.h"
+#include "dfu_core.h"
 
 /*
  * NOTE: this implementation of the DFU state machine does not handle the
@@ -134,7 +135,7 @@ int dfu_usb_reset()
  */
 int dfu_set_alt_setting(uint8_t alt_setting)
 {
-	if (alt_setting >= DFU_CFG_NUM_ALT_SETTINGS) {
+	if (alt_setting >= DFU_NUM_ALT_SETTINGS) {
 		return -EIO;
 	}
 	reset_status();
@@ -174,7 +175,7 @@ int dfu_detach(uint16_t timeout_ms)
  *
  * @return  0 if no error has occurred, an error code otherwise.
  */
-int dfu_process_dnload(uint16_t block_num, const uint8_t *data, uint16_t len)
+int dfu_process_dnload(uint16_t block_num, uint8_t *data, uint16_t len)
 {
 	switch (dfu_state) {
 	case DFU_STATE_DFU_IDLE:
@@ -198,7 +199,7 @@ int dfu_process_dnload(uint16_t block_num, const uint8_t *data, uint16_t len)
 		/* If the block is empty, it signals the end of the download */
 		if (len == 0) {
 			/* check if finalization is allowed */
-			if (dfu_rh->fin_dnload_xfer() == 0) {
+			if (dfu_rh->fin_dnload_xfer(block_num) == 0) {
 				dfu_state = DFU_STATE_DFU_MANIFEST_SYNC;
 				return 0;
 			} else {
@@ -214,6 +215,11 @@ int dfu_process_dnload(uint16_t block_num, const uint8_t *data, uint16_t len)
 	/* we end up here if a DNLOAD transfer just started or is continuing */
 	next_block_num = block_num + 1;
 	dfu_rh->proc_dnload_blk(block_cnt, data, len);
+	/*
+	 * Since processing is done, clear the block data for security reasons
+	 * (the packet may contain a key-update packet with new keys).
+	 */
+	memset(data, 0, len);
 	block_cnt++;
 	dfu_state = DFU_STATE_DFU_DNLOAD_SYNC;
 

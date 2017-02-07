@@ -27,52 +27,33 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __DFU_CONFIG_H__
-#define __DFU_CONFIG_H__
+#ifndef __ROM_VERSION_H__
+#define __ROM_VERSION_H__
 
-#include "../bl_data.h"
-
-/**
- * DFU configuration defines.
+/*
+ * Version number defines for the ROM
  */
 
-/* These are exposed in Device Descriptors. */
-/* Vendor ID. */
-#define DFU_CFG_VID (0xBEEF)
-
-/* Product ID in run-time. */
-#define DFU_CFG_PID (0x00DA)
-
-/* Product ID in DFU mode. */
-#define DFU_CFG_PID_DFU (0xFFDA)
-
-/* Device release number (as a BCD). */
-#define DFU_CFG_DEV_BCD (0x0100)
-
-
-/* These are exposed in DFU Descriptors. */
-/* Detach timeout. */
-#define DFU_CFG_DETACH_TIMEOUT (0xFFFF)
-
-/* Maximum supported block size. */
-#define DFU_CFG_MAX_BLOCK_SIZE (2048)
-
-/* DFU Version (as BCD). */
-#define DFU_CFG_DFU_VERSION_BCD (0x0101)
-
-/**
- * DFU attributes (bitfield).
- *
- * DFU bmAttributes (bitfield): 0x07 (bitWillDetach = 0,
- * bitManifestationTollerant = 1, bitCanUpload = 1, bitCanDnload = 1)
+/*
+ * ROM Major version number
  */
-#define DFU_CFG_DFU_ATTRIBUTES (0x07)
+#define QM_VER_ROM_MAJOR (1)
 
-/**
- * Number of alternate settings.
- *
- * Number of partitions + QFM alternate setting (i.e., alt setting 0).
+/*
+ * ROM Minor version number
  */
-#define DFU_CFG_NUM_ALT_SETTINGS (1 + BL_FLASH_PARTITIONS_NUM)
+#define QM_VER_ROM_MINOR (4)
 
-#endif /* __DFU_CONFIG_H__ */
+/*
+ * ROM Patch version number
+ */
+#define QM_VER_ROM_PATCH (0)
+
+/*
+ * ROM version number combined
+ */
+#define QM_VER_ROM                                                             \
+	((QM_VER_ROM_MAJOR * 10000) + (QM_VER_ROM_MINOR * 100) +               \
+	 QM_VER_ROM_PATCH)
+
+#endif /* __ROM_VERSION_H__ */

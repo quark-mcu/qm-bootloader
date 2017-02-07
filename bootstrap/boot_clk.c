@@ -30,7 +30,6 @@
 #include <string.h>
 #include "boot_clk.h"
 #include "qm_flash.h"
-#include "flash_layout.h"
 #include <x86intrin.h>
 
 /* 64bit Timestamp counter */
@@ -84,7 +83,7 @@ static int boot_clk_trim_compute(clk_sys_mode_t mode, uint16_t *const trim)
 	};
 
 	/* Enable AON counter */
-	QM_AONC[QM_AONC_0].aonc_cfg |= AONC_CFG_AONC_CNT_EN;
+	QM_AONC[QM_AONC_0]->aonc_cfg |= AONC_CFG_AONC_CNT_EN;
 
 	rc = boot_clk_hyb_set_mode(mode, CLK_SYS_DIV_2);
 	QM_CHECK(rc == 0, rc);
@@ -105,15 +104,15 @@ static int boot_clk_trim_compute(clk_sys_mode_t mode, uint16_t *const trim)
 
 		/* Wait one RTC tick so as to eliminate any time
 		 * inconsistencies between clock domains */
-		aonc_start = QM_AONC->aonc_cnt;
-		while (QM_AONC->aonc_cnt == aonc_start) {
+		aonc_start = QM_AONC[QM_AONC_0]->aonc_cnt;
+		while (QM_AONC[QM_AONC_0]->aonc_cnt == aonc_start) {
 		}
 
 		/* Start calibration period */
-		aonc_start = QM_AONC->aonc_cnt;
+		aonc_start = QM_AONC[QM_AONC_0]->aonc_cnt;
 		ts_start = get_ticks();
 
-		while (QM_AONC->aonc_cnt - aonc_start <
+		while (QM_AONC[QM_AONC_0]->aonc_cnt - aonc_start <
 		       OSC_TRIM_PERIOD_RTC_TICKS) {
 		}
 		ts_stop = get_ticks();
@@ -132,6 +131,9 @@ static int boot_clk_trim_compute(clk_sys_mode_t mode, uint16_t *const trim)
 	/* Disable trim mode */
 	QM_SCSS_CCU->osc0_cfg0 &= ~BIT(1);
 
+	/* Disable AON counter */
+	QM_AONC[QM_AONC_0]->aonc_cfg &= ~AONC_CFG_AONC_CNT_EN;
+
 	return rc;
 }
 #endif /* HAS_RTC_XTAL */
@@ -147,22 +149,9 @@ static int boot_clk_trim_compute(clk_sys_mode_t mode, uint16_t *const trim)
  * @return Resulting status code.
  * @retval 0 if successful.
  */
-static int boot_clk_trim_code_store(qm_flash_data_trim_t *trim_codes)
+static int boot_clk_trim_code_store(qm_flash_data_trim_t *const trim_codes)
 {
 	int rc = 0;
-	static const qm_flash_config_t cfg = {
-	    .us_count = SYS_TICKS_PER_US_32MHZ / BIT(CLK_SYS_DIV_1),
-	    .wait_states = 0x1,
-	    .write_disable = QM_FLASH_WRITE_ENABLE};
-
-	/* Set flash configuration.
-	 * Keep default wait_states.
-	 * Set the number of clocks in a micro second
-	 * for the current frequency.
-	 * Current frequency is 32MHZ as defined by boot_clk_trim_code_setup().
-	 */
-	rc = qm_flash_set_config(QM_FLASH_0, &cfg);
-	QM_CHECK(rc == 0, rc);
 
 	rc = qm_flash_page_update(QM_FLASH_0, QM_FLASH_DATA_TRIM_REGION,
 				  QM_FLASH_DATA_TRIM_OFFSET, flash_page_buffer,
@@ -247,30 +236,54 @@ int boot_clk_hyb_set_mode(const clk_sys_mode_t mode, const clk_sys_div_t div)
 	return 0;
 }
 
-int boot_clk_trim_code_setup(void)
+int boot_clk_trim_code_compute(qm_flash_data_trim_t *const ptr_trim_codes)
 {
 	int rc = 0;
 	clk_sys_mode_t mode;
-	qm_flash_data_trim_t trim_codes;
 
-	(trim_codes.fields).osc_trim_4mhz =
+	(ptr_trim_codes->fields).osc_trim_4mhz =
 	    QM_FLASH_OTP_TRIM_CODE->osc_trim_4mhz;
 
-	(trim_codes.fields).osc_trim_8mhz =
+	(ptr_trim_codes->fields).osc_trim_8mhz =
 	    QM_FLASH_OTP_TRIM_CODE->osc_trim_8mhz;
 
-	(trim_codes.fields).osc_trim_16mhz =
+	(ptr_trim_codes->fields).osc_trim_16mhz =
 	    QM_FLASH_OTP_TRIM_CODE->osc_trim_16mhz;
 
-	(trim_codes.fields).osc_trim_32mhz =
+	(ptr_trim_codes->fields).osc_trim_32mhz =
 	    QM_FLASH_OTP_TRIM_CODE->osc_trim_32mhz;
 
 	for (mode = CLK_SYS_HYB_OSC_32MHZ; mode < CLK_SYS_RTC_OSC; mode++) {
 		rc = boot_clk_trim_code_get(
-		    mode, (uint16_t *)&trim_codes.osc_trim_u16[mode]);
+		    mode, (uint16_t *)&(ptr_trim_codes->osc_trim_u16[mode]));
 	}
+
 	boot_clk_hyb_set_mode(CLK_SYS_HYB_OSC_32MHZ, CLK_SYS_DIV_1);
-	rc = boot_clk_trim_code_store(&trim_codes);
 
 	return rc;
+}
+
+void boot_clk_trim_code_check_and_setup(void)
+{
+	qm_flash_data_trim_t trim_codes;
+
+	/*
+	 * Switch to each silicon oscillator to set up trim data
+	 * This sets up the trim codes for the first boot.
+	 * This consists of computing the trim code if not available
+	 * in non volatile memory and write this results in flash.
+	 *
+	 * This step is only performed if the shadow region
+	 * is not populated.
+	 * We rely on the 32MHz trim code to be shadowed to
+	 * consider the region populated.
+	 *
+	 * This can be modified if this policy does not match your
+	 * specific requirements.
+	 */
+	if ((QM_FLASH_DATA_TRIM_CODE->osc_trim_32mhz &
+	     QM_FLASH_TRIM_PRESENT_MASK) != QM_FLASH_TRIM_PRESENT) {
+		boot_clk_trim_code_compute(&trim_codes);
+		boot_clk_trim_code_store(&trim_codes);
+	}
 }

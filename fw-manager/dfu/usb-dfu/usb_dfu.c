@@ -50,8 +50,8 @@
 
 #include "bl_data.h"
 #include "dfu/core/dfu_core.h"
-#include "fw-manager.h"
 #include "fw-manager_utils.h"
+#include "qm_pinmux.h"
 
 #define USB_VBUS_GPIO_PIN 28
 #define USB_VBUS_GPIO_PORT QM_GPIO_0
@@ -71,13 +71,26 @@ uint32_t test_lmt_app;
 /* Generates one interrupt after 10 seconds with a 32MHz sysclk. */
 #define TIMEOUT 0x14000000
 
+#if FM_CONFIG_USE_AON_GPIO_PORT
+#define FM_GPIO_PORT QM_AON_GPIO_0
+#else
+#define FM_GPIO_PORT QM_GPIO_0
+#endif
+
+#if FM_CONFIG_ENABLE_GPIO_PIN
+#define fm_gpio_get_state(state_ptr)                                           \
+	qm_gpio_read_pin(FM_GPIO_PORT, FM_CONFIG_GPIO_PIN, state_ptr)
+#else
+#define fm_gpio_get_state(state_ptr) (*state_ptr = QM_GPIO_HIGH)
+#endif
+
 /* Forward declarations */
 static void dfu_status_cb(void *data, int error, qm_usb_status_t status);
 static int dfu_class_handle_req(usb_setup_packet_t *pSetup, uint32_t *data_len,
 				uint8_t **data);
 static void timeout(void *data);
 
-static uint8_t usb_buffer[DFU_MAX_XFER_SIZE]; /* DFU data buffer */
+static uint8_t usb_buffer[DFU_MAX_BLOCK_SIZE]; /* DFU data buffer */
 
 /* Set on USB detach, needed for the proprietary 'detach' extension of DFU. */
 static bool usb_detached = false;
@@ -155,14 +168,12 @@ static const uint8_t dfu_mode_usb_description[] = {
     /* DFU descriptor */
     USB_DFU_DESC_SIZE,       /* Descriptor size */
     USB_DFU_FUNCTIONAL_DESC, /* Descriptor type DFU: Functional */
-    DFU_ATTR_CAN_DNLOAD | DFU_ATTR_CAN_UPLOAD |
-	DFU_ATTR_MANIFESTATION_TOLERANT, /* DFU attributes */
+    DFU_ATTRIBUTES,	  /* DFU attributes */
     LOW_BYTE(DFU_DETACH_TIMEOUT),
     HIGH_BYTE(DFU_DETACH_TIMEOUT), /* wDetachTimeOut */
-    LOW_BYTE(DFU_MAX_XFER_SIZE),
-    HIGH_BYTE(DFU_MAX_XFER_SIZE), /* wXferSize  - 512bytes */
-    0x11, 0,			  /* DFU Version */
-
+    LOW_BYTE(DFU_MAX_BLOCK_SIZE),
+    HIGH_BYTE(DFU_MAX_BLOCK_SIZE), /* wXferSize  - 512bytes */
+    LOW_BYTE(DFU_VERSION_BCD), HIGH_BYTE(DFU_VERSION_BCD), /* DFU Version */
     /* String descriptor language, only one, so min size 4 bytes.
      * 0x0409 English(US) language code used.
      */
@@ -181,15 +192,16 @@ static const uint8_t dfu_mode_usb_description[] = {
     0x0C, USB_STRING_DESC, '0', 0, '0', 0, '.', 0, '0', 0, '1', 0,
 
     /* Interface alternate setting 0 String Descriptor: "QDM" */
-    0x08, USB_STRING_DESC, 'Q', 0, 'D', 0, 'M', 0,
+    0x08, USB_STRING_DESC, 'Q', 0, 'F', 0, 'M', 0,
 
-    /* Interface alternate setting 0 String Descriptor: "PARTITION0" */
-    0x16, USB_STRING_DESC, 'P', 0, 'A', 0, 'R', 0, 'T', 0, 'I', 0, 'T', 0, 'I',
-    0, 'O', 0, 'N', 0, '1', 0,
+    /* Interface alternate setting 0 String Descriptor: "PARTITION1" */
+    0x22, USB_STRING_DESC, 'P', 0, 'a', 0, 'r', 0, 't', 0, 'i', 0, 't', 0, 'i',
+    0, 'o', 0, 'n', 0, '1', 0, ' ', 0, '(', 0, 'L', 0, 'M', 0, 'T', 0, ')', 0,
 
     /* Interface alternate setting 0 String Descriptor: "PARTITION2" */
-    0x16, USB_STRING_DESC, 'P', 0, 'A', 0, 'R', 0, 'T', 0, 'I', 0, 'T', 0, 'I',
-    0, 'O', 0, 'N', 0, '2', 0};
+    0x22, USB_STRING_DESC, 'P', 0, 'a', 0, 'r', 0, 't', 0, 'i', 0, 't', 0, 'i',
+    0, 'o', 0, 'n', 0, '2', 0, ' ', 0, '(', 0, 'A', 0, 'R', 0, 'C', 0, ')', 0,
+};
 
 static bool lmt_partition_is_bootable()
 {
@@ -207,10 +219,13 @@ static void timeout(void *data)
 {
 	(void)(data);
 	/*
-	 * If we timeout and we have a valid LMT image, load it.
-	 * Otherwise, reset the timer.
+	 * If we timeout, have a valid LMT image and the FM_CONFIG_GPIO_PIN is
+	 * not grounded, load it. Otherwise, reset the timer.
 	 */
-	if (lmt_partition_is_bootable()) {
+	qm_gpio_state_t state;
+	fm_gpio_get_state(&state);
+
+	if (lmt_partition_is_bootable() && (state == QM_GPIO_HIGH)) {
 		qm_pic_timer_set(0);
 		reset();
 	} else {
@@ -274,7 +289,8 @@ static const usb_device_config_t dfu_config = {
     .status_callback = dfu_status_cb,
     .interface = {.class_handler = dfu_class_handle_req,
 		  .custom_handler = dfu_custom_handle_req,
-		  .data = usb_buffer},
+		  .data = usb_buffer,
+		  .data_size = sizeof(usb_buffer)},
     .num_endpoints = DFU_NUM_EP};
 
 /**
@@ -444,7 +460,7 @@ int usb_dfu_start(void)
 	/* Set alternate setting for partition 0 (x86) */
 	dfu_set_alt_setting(1);
 
-	/* On MountAtlas we must set GPIO 28 to enable VCC_USB into the SoC. */
+	/* On Quark SE dev board we must set GPIO 28 to enable VCC_USB on the SoC. */
 	enable_usb_vbus();
 
 	/* Enable USB driver */
@@ -453,6 +469,11 @@ int usb_dfu_start(void)
 		DBG("Failed to enable USB\n");
 		return ret;
 	}
+
+/* Enable the FM-pin pull-up. The configuration is done in fm_hook()*/
+#if !(FM_CONFIG_USE_AON_GPIO_PORT)
+	qm_pmux_pullup_en(FM_CONFIG_GPIO_PIN, true);
+#endif
 
 	start_timer();
 

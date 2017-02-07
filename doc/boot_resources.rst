@@ -35,6 +35,8 @@ Overview
 +------------------+---------------+----------------+------------------+
 | FM gpio pin      | GPIO_2        | AON 1          | Do not ground    |
 +------------------+---------------+----------------+------------------+
+| Flash protection | FPR 0         | FPR 0          | Locked           |
++------------------+---------------+----------------+------------------+
 
 
 Gpio pins
@@ -114,3 +116,15 @@ A part of the flash of the device is reserved for the bootloader data (BL-data).
 +------------------+--------------------------+-------+----------------+
 | Quark SE C1000   | 0x4002F000 - 0x40030000  | 4kB   | System flash 0 |
 +------------------+--------------------------+-------+----------------+
+
+Flash protection
+================
+
+Part of the mentioned BL-data is available for the firmware to be read, while
+other part is private for the bootloader itself.
+
+To achieve this, an FPR is used to limit the read access for the bootloader
+private data. This FPR is locked so it can't be disabled by the firmware.
+
+* FPR:
+    - All SoC's:       ``FPR_0``

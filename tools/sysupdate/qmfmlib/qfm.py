@@ -35,18 +35,19 @@ interface."""
 from __future__ import print_function, division, absolute_import
 import struct
 import json
-
-# Structures
+import hashlib
+import hmac
 _ENDIAN = "<"   # Defines the endian for struct packing. ('<'=little, '>'=big)
 
 # Constants
-SUPPORTED_VERSIONS = [0, ]
+SUPPORTED_VERSIONS = [0, 10400 ]
 SOC_TYPES = {0: "Quark D2000", 1: "Quark SE"}
 AUTH_TYPES = {0: "NONE", }
 TARGET_TYPES = {0: "x86", 1: "sensor"}
 PARTITION_DATA_SIZE = 5
 TARGET_DATA_SIZE = 2
 META_DATA_SIZE = 4
+
 
 class QFMException(Exception):
     """QFM Exception."""
@@ -89,8 +90,10 @@ class QFMRequest(object):
     Args:
         data (int): The QFM request type."""
 
-    REQ_SYS_INFO = 0x444D0000   # Sys-Info-Request identifier.
-    REQ_APP_ERASE = 0x444D0001  # App-Erase-Request identifier.
+    REQ_SYS_INFO = 0x444D0000       # Sys-Info-Request identifier.
+    REQ_APP_ERASE = 0x444D0001      # App-Erase-Request identifier.
+    REQ_SET_FW_KEY = 0x444D0002     # Set-key-fw-Request identifier.
+    REQ_SET_RV_KEY = 0x444D0003     # Set-key-rv-Request identifier.
 
     cmd = 0
     content = ""
@@ -98,6 +101,35 @@ class QFMRequest(object):
     def __init__(self, cmd):
         self.cmd = cmd
         self.content = struct.pack("%sI" % _ENDIAN, cmd)
+
+
+class QFMSetKey(QFMRequest):
+
+    default_key = bytearray(0)
+
+    def __init__(self, new_key_content, curr_fw_key_content,
+                 curr_rv_key_content, key_type):
+        super(QFMSetKey, self).__init__(key_type)
+        self.content += struct.Struct("%s32s" % _ENDIAN).pack(bytes(
+            new_key_content))
+
+        if curr_fw_key_content == '':
+            curr_fw_key_content = self.default_key
+
+        if curr_rv_key_content == '':
+            curr_rv_key_content = self.default_key
+
+        # Sign the header with the old key
+        hmac256 = hmac.new(bytes(curr_fw_key_content),
+                          self.content,
+                          digestmod=hashlib.sha256).digest()
+
+        # Sign the data and the signature with the revocation key
+        hmac256 = hmac.new(bytes(curr_rv_key_content),
+                          hmac256,
+                          digestmod=hashlib.sha256).digest()
+
+        self.content += struct.Struct("%s32s" % _ENDIAN).pack(hmac256)
 
 
 class QFMSysInfoTarget(dict):
@@ -157,7 +189,7 @@ class QFMSysInfoPartition(dict):
         self["app_version"] = self.app_version
         self.partition_number = number
         self["number"] = self.partition_number
-        # Note: Target and partition number are the same in version 1.1.
+        # Note: Target and partition number are currently the same.
         self.target = number
         self["target"] = self.target
 

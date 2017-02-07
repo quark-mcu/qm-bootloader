@@ -42,11 +42,24 @@ void *test_2nd_stage_addr;
 #define BL_2ND_STAGE_ADDR (0x4005b000)
 #endif
 
+#if UNIT_TEST
+/* Loop-control variable used by unit tests. */
+int test_fm_entry_2nd_stage_loop;
+#define FOREVER() (test_fm_entry_2nd_stage_loop--)
+#else
+#define FOREVER() (1)
+#endif
+
 void fm_entry_2nd_stage(void)
 {
 	void (*second_stage_entry)(void) = (void *)BL_2ND_STAGE_ADDR;
 
 	if (0xffffffff != *(uint32_t *)BL_2ND_STAGE_ADDR) {
 		second_stage_entry();
+	}
+
+	/* Enter infinite loop if 2nd-stage is expected but not present. */
+	while (FOREVER()) {
+		/* Do nothing. */
 	}
 }

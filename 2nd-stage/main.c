@@ -39,7 +39,7 @@ int main(void)
 	/* Call bl_data_sanitize() to initialize bl_data with value in flash. */
 	bl_data_sanitize();
 
-	fm_entry_usb();
+	fm_entry();
 
 	return 0;
 }

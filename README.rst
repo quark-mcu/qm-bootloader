@@ -160,7 +160,8 @@ By default, context save and restore management is enabled on Quark SE.
 Flashing
 ========
 
-The bootloader must be flashed on the OTP ROM flash region.
+The bootloader must be flashed on the OTP ROM flash region. Before flashing a
+new bootloader, a mass erase should be performed.
 
 For flashing the board OpenOCD must be used. You can optionally use gdb
 as a front-end for OpenOCD as described below.
@@ -188,6 +189,10 @@ To connect to the remote port, enter the following GDB commands:
 ``(gdb) target remote :3333``
 
 ``(gdb) monitor clk32M 5000``
+
+To perform a mass erase, enter the following GDB command:
+
+``(gdb) monitor mass_erase``
 
 For D2000, the following command is used to flash the bootloader to the device:
 

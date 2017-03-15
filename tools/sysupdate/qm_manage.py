@@ -44,7 +44,7 @@ import tempfile
 
 import qmfmlib
 
-__version__ = "1.1"
+__version__ = "1.3"
 
 # If you plan to use Unicode characters (e.g., ® and ™) in the following string
 # please ensure that your solution works fine on a Windows console.

@@ -55,4 +55,4 @@ from qmfmlib.qfu import QFUHeader, QFUImage, QFUException
 from qmfmlib.dfu import DFUImage, DFUException
 from qmfmlib.qfm import QFMRequest, QFMResponse, QFMSysInfo, QFMException
 
-__version__ = "1.1"
+__version__ = "1.3"

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,6 +31,8 @@
 #define __FW_MANAGER_COMM_H__
 
 #include "qm_soc_regs.h"
+#include "qm_interrupt.h"
+#include "qm_interrupt_router.h"
 #include "fw-manager_config.h"
 
 /*
@@ -44,7 +46,11 @@
 #define FM_COMM_UART_PIN_RX_ID (QM_PIN_ID_19)
 #define FM_COMM_UART_PIN_RX_FN (QM_PMUX_FN_0)
 #define FM_COMM_UART_CLK (CLK_PERIPH_UARTA_REGISTER)
-#define fm_comm_irq_request() qm_irq_request(QM_IRQ_UART_0_INT, qm_uart_0_isr)
+#define fm_comm_irq_request()                                                  \
+	do {                                                                   \
+		QM_IR_UNMASK_INT(QM_IRQ_UART_0_INT);                           \
+		QM_IRQ_REQUEST(QM_IRQ_UART_0_INT, qm_uart_0_isr);              \
+	} while (0);
 #elif(FM_CONFIG_UART == 1)
 #define FM_COMM_UART_PIN_TX_ID (QM_PIN_ID_16)
 #define FM_COMM_UART_PIN_TX_FN (QM_PMUX_FN_2)
@@ -52,7 +58,11 @@
 #define FM_COMM_UART_PIN_RX_FN (QM_PMUX_FN_2)
 #define FM_COMM_UART_IRQ (QM_IRQ_UART_1_INT)
 #define FM_COMM_UART_CLK (CLK_PERIPH_UARTB_REGISTER)
-#define fm_comm_irq_request() qm_irq_request(QM_IRQ_UART_1_INT, qm_uart_1_isr)
+#define fm_comm_irq_request()                                                  \
+	do {                                                                   \
+		QM_IR_UNMASK_INT(QM_IRQ_UART_1_INT);                           \
+		QM_IRQ_REQUEST(QM_IRQ_UART_1_INT, qm_uart_1_isr);              \
+	} while (0);
 #else
 #error "Invalid UART ID for FM comm"
 #endif /* FM_CONFIG_UART */
@@ -63,7 +73,11 @@
 #define FM_COMM_UART_PIN_RX_ID (QM_PIN_ID_13)
 #define FM_COMM_UART_PIN_RX_FN (QM_PMUX_FN_2)
 #define FM_COMM_UART_CLK (CLK_PERIPH_UARTA_REGISTER)
-#define fm_comm_irq_request() qm_irq_request(QM_IRQ_UART_0_INT, qm_uart_0_isr)
+#define fm_comm_irq_request()                                                  \
+	do {                                                                   \
+		QM_IR_UNMASK_INT(QM_IRQ_UART_0_INT);                           \
+		QM_IRQ_REQUEST(QM_IRQ_UART_0_INT, qm_uart_0_isr);              \
+	} while (0);
 #elif(FM_CONFIG_UART == 1)
 #define FM_COMM_UART_PIN_TX_ID (QM_PIN_ID_20)
 #define FM_COMM_UART_PIN_TX_FN (QM_PMUX_FN_2)
@@ -71,12 +85,14 @@
 #define FM_COMM_UART_PIN_RX_FN (QM_PMUX_FN_2)
 #define FM_COMM_UART_IRQ (QM_IRQ_UART_1_INT)
 #define FM_COMM_UART_CLK (CLK_PERIPH_UARTB_REGISTER)
-#define fm_comm_irq_request() qm_irq_request(QM_IRQ_UART_1_INT, qm_uart_1_isr)
+#define fm_comm_irq_request()                                                  \
+	do {                                                                   \
+		QM_IR_UNMASK_INT(QM_IRQ_UART_1_INT);                           \
+		QM_IRQ_REQUEST(QM_IRQ_UART_1_INT, qm_uart_1_isr);              \
+	} while (0);
 #else
 #error "Invalid UART ID for FM comm"
 #endif /* FM_CONFIG_UART */
-#else
-#error "SOC not supported"
 #endif
 
 #endif /* __FW_MANAGER_COMM_H__ */

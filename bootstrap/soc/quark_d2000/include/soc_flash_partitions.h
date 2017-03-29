@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,9 +51,14 @@
 #define BL_DATA_FLASH_REGION_BASE QM_FLASH_REGION_DATA_0_BASE
 /* The flash page where the BL-Data Section starts. */
 #define BL_DATA_SECTION_BASE_PAGE (0)
+/* The flash region for the FPR to protect BL-Data */
+#define BL_DATA_FPR_REGION QM_MAIN_FLASH_DATA
 
 /* The size (in pages) of the System flash region of Quark D2000. */
 #define QM_FLASH_REGION_SYS_0_PAGES (16)
+
+/* The size (in pages) of the Bootloader Data section. */
+#define BL_DATA_SECTION_PAGES (2)
 
 /* The size of each flash partition for Lakemont application code. */
 #if (BL_CONFIG_DUAL_BANK)
@@ -61,6 +66,12 @@
 #else /* !BL_CONFIG_DUAL_BANK */
 #define BL_PARTITION_SIZE_LMT (QM_FLASH_REGION_SYS_0_PAGES)
 #endif /* BL_CONFIG_DUAL_BANK */
+
+#define BL_PARTITION_MAX_PAGES BL_PARTITION_SIZE_LMT
+
+/*Flash size is 32k main memory + 4k data*/
+#define FLASH_SIZE_KB (32 + 4)
+#define RAM_SIZE_KB (8)
 
 /* Number of boot targets. */
 #define BL_BOOT_TARGETS_NUM (1)

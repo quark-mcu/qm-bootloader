@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,11 +32,13 @@
 #include "qm_isr.h"
 #include "qm_pinmux.h"
 #include "qm_interrupt.h"
+#include "qm_interrupt_router.h"
 #include "qm_pic_timer.h"
 #include "qm_uart.h"
 #include "clk.h"
 
 #include "xmodem_io.h"
+#include "xmodem_io_uart.h"
 #include "../../fw-manager_comm.h"
 
 #define PIC_TIMER_ALARM_SECOND (0x2000000)
@@ -115,41 +117,41 @@ static void pic_timer_callback(void *data)
 /*-------------------------------------------------------------------------*/
 /*                         XMODEM I/O FUNCTIONS                            */
 /*-------------------------------------------------------------------------*/
-/* Send one byte */
+/* Send one byte. */
 int xmodem_io_putc(const uint8_t *ch)
 {
 	return qm_uart_write(FM_CONFIG_UART, *ch);
 }
 
-/* Receive one byte */
+/* Receive one byte. */
 int xmodem_io_getc(uint8_t *ch)
 {
 	enum rx_state retv;
 
-	/* Set up timeout timer */
+	/* Set up timeout timer. */
 	qm_pic_timer_set_config(&pic_timer_cfg);
 	qm_pic_timer_set(PIC_TIMER_ALARM_SECOND * XMODEM_UART_TIMEOUT_S);
 
-	/* Resetting the state and read byte */
+	/* Resetting the state and read byte. */
 	xmodem_io_rx_state = STATE_WAITING;
 	qm_uart_irq_read(FM_CONFIG_UART, &uart_transfer);
 
-	/* Wait for UART interruption or PIC Timer timeout callback */
+	/* Wait for UART interruption or PIC Timer timeout callback. */
 	while (retv = xmodem_io_rx_state, retv == STATE_WAITING) {
-		; /* Busy wait until one of the callbacks is called */
+		; /* Busy wait until one of the callbacks is called. */
 	}
 	switch (retv) {
 	case STATE_TIMEOUT:
 		qm_uart_irq_read_terminate(FM_CONFIG_UART);
 		break;
 	case STATE_UART_RX_DONE:
-		/* Got byte */
+		/* Got byte. */
 		*ch = in_byte;
 		break;
 	default:
-		/**
+		/*
 		 * Handle STATE_UART_ERROR case which can happen on UART read
-		 * error, and STATE_WAITING which is an impossible case
+		 * error, and STATE_WAITING which is an impossible case.
 		 */
 		break;
 	}
@@ -160,26 +162,27 @@ int xmodem_io_getc(uint8_t *ch)
 /*-------------------------------------------------------------------------*/
 /*                           GLOBAL FUNCTIONS                              */
 /*-------------------------------------------------------------------------*/
-void xmodem_io_uart_init()
+void xmodem_io_uart_init(void)
 {
-	/* Pinmux for UART_x */
+	/* Pin-muxing for UART_x. */
 	qm_pmux_select(FM_COMM_UART_PIN_TX_ID, FM_COMM_UART_PIN_TX_FN);
 	qm_pmux_select(FM_COMM_UART_PIN_RX_ID, FM_COMM_UART_PIN_RX_FN);
 	qm_pmux_input_en(FM_COMM_UART_PIN_RX_ID, true);
 
-	/* Enable UART clocks */
+	/* Enable UART clocks. */
 	clk_periph_enable(FM_COMM_UART_CLK | CLK_PERIPH_CLK);
 
-	/* Setup UART */
+	/* Setup UART. */
 	qm_uart_set_config(FM_CONFIG_UART, &uart_config);
 
-	/* Request IRQ for UART */
+	/* Request IRQ for UART. */
 	fm_comm_irq_request();
 
 #if (HAS_APIC)
-	/* Request interrupts for PIC Timer */
+	/* Request interrupts for PIC Timer. */
 	qm_int_vector_request(QM_X86_PIC_TIMER_INT_VECTOR, qm_pic_timer_0_isr);
 #elif(HAS_MVIC)
-	qm_irq_request(QM_IRQ_PIC_TIMER, qm_pic_timer_0_isr);
+	QM_IRQ_REQUEST(QM_IRQ_PIC_TIMER, qm_pic_timer_0_isr);
+	QM_IR_UNMASK_INT(QM_IRQ_PIC_TIMER);
 #endif
 }

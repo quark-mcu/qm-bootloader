@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Intel Corporation
+ *  Copyright (c) 2017, Intel Corporation
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -32,14 +32,22 @@
 #include "bl_data.h"
 #include "fm_entry.h"
 
+/* Set DEBUG_MSG to 1 to enable debugging messages. */
+#define DEBUG_MSG (0)
+#if (DEBUG_MSG)
+#define DBG_PRINTF(...) QM_PRINTF(__VA_ARGS__)
+#else
+#define DBG_PRINTF(...)
+#endif
+
 int main(void)
 {
-	QM_PUTS("QMSI USB-DFU 2nd stage Bootloader");
+	DBG_PRINTF("QMSI USB-DFU 2nd stage Bootloader\n");
 
 	/* Call bl_data_sanitize() to initialize bl_data with value in flash. */
 	bl_data_sanitize();
 
-	fm_entry_usb();
+	fm_entry();
 
 	return 0;
 }

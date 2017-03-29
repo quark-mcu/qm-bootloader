@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,8 +31,6 @@
 #define __QDA_PACKETS_H__
 
 #include <stdint.h>
-
-#define __QM_ATTR_PACKED__ __attribute__((__packed__))
 
 /**
  * QDA packet types
@@ -66,7 +64,7 @@ typedef enum {
 /**
  * Generic QDA Packet structure
  */
-typedef struct __QM_ATTR_PACKED__ {
+typedef struct __attribute__((__packed__)) {
 	uint32_t type;
 	uint8_t payload[];
 } qda_pkt_t;
@@ -74,7 +72,7 @@ typedef struct __QM_ATTR_PACKED__ {
 /**
  * QDA_DNLOAD_REQ payload structure
  */
-typedef struct __QM_ATTR_PACKED__ {
+typedef struct __attribute__((__packed__)) {
 	uint16_t data_len;
 	uint16_t block_num;
 	uint8_t data[];
@@ -83,7 +81,7 @@ typedef struct __QM_ATTR_PACKED__ {
 /**
  * QDA_UPLOAD_REQ payload structure
  */
-typedef struct __QM_ATTR_PACKED__ {
+typedef struct __attribute__((__packed__)) {
 	uint16_t max_data_len;
 	uint16_t block_num;
 } qda_upl_req_payload_t;
@@ -91,14 +89,14 @@ typedef struct __QM_ATTR_PACKED__ {
 /**
  * QDA_USB_SET_ALT_SETTING payload structure
  */
-typedef struct __QM_ATTR_PACKED__ {
+typedef struct __attribute__((__packed__)) {
 	uint8_t alt_setting;
 } qda_set_alt_setting_payload_t;
 
 /**
  * QDA_UPLOAD_RSP payload structure
  */
-typedef struct __QM_ATTR_PACKED__ {
+typedef struct __attribute__((__packed__)) {
 	uint16_t data_len;
 	uint8_t data[];
 } qda_upl_rsp_payload_t;
@@ -106,27 +104,28 @@ typedef struct __QM_ATTR_PACKED__ {
 /**
  * QDA_USB_DEV_DSC_RSP payload structure
  */
-typedef struct __QM_ATTR_PACKED__ {
+typedef struct __attribute__((__packed__)) {
 	uint16_t id_vendor;
 	uint16_t id_product;
 	uint16_t bcd_device;
 } qda_dev_dsc_rsp_payload_t;
 
 /**
- * QDA_DFU_DSC_RSP payload structure
+ * QDA_DFU_DSC_RSP packet structure
  */
-typedef struct __QM_ATTR_PACKED__ {
+typedef struct __attribute__((__packed__)) {
+	uint32_t type;
 	uint8_t num_alt_settings;
 	uint8_t bm_attributes;
 	uint16_t detach_timeout;
 	uint16_t transfer_size;
 	uint16_t bcd_dfu_ver;
-} qda_dfu_dsc_rsp_payload_t;
+} qda_dfu_dsc_rsp_t;
 
 /**
  * QDA_GET_STATUS_RSP payload structure
  */
-typedef struct __QM_ATTR_PACKED__ {
+typedef struct __attribute__((__packed__)) {
 	/*
 	 * As per the DFU spec, poll_timeout is 3-byte integer, but QDA stores
 	 * it in a 4-byte field for simplicity
@@ -139,7 +138,7 @@ typedef struct __QM_ATTR_PACKED__ {
 /**
  * QDA_GET_STATE_RSP payload structure
  */
-typedef struct __QM_ATTR_PACKED__ {
+typedef struct __attribute__((__packed__)) {
 	uint8_t state;
 } qda_get_state_rsp_payload_t;
 

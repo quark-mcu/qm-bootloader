@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,10 +30,6 @@
 #ifndef __QDA_H__
 #define __QDA_H__
 
-#include <stddef.h>
-
-#include "../dfu.h"
-
 /**
  * Quark DFU Adaptation (QDA) layer.
  *
@@ -48,7 +44,7 @@
  * initializes the DFU state machine and the hardware required by XMODEM (i.e.,
  * the UART and the PIC timer).
  */
-void qda_init();
+void qda_init(void);
 
 /*
  * Receive and process QDA packets.
@@ -56,7 +52,7 @@ void qda_init();
  * Receive and process QDA packets, until the communication becomes idle (i.e.,
  * no data is received for a certain amount of time).
  */
-void qda_receive_loop();
+void qda_receive_loop(void);
 
 /**
  * @}

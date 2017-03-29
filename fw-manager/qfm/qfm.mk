@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016, Intel Corporation
+# Copyright (c) 2017, Intel Corporation
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -29,14 +29,7 @@
 
 ### Variables
 QFM_DIR = $(FM_DIR)/qfm
-OBJ_DIRS += $(QFM_DIR)/$(BUILD)/$(SOC)/$(TARGET)
 QFM_SOURCES = $(wildcard $(QFM_DIR)/*.c)
-QFM_OBJ_DIR = $(QFM_DIR)/$(BUILD)/$(SOC)/$(TARGET)/$(OBJ)
+QFM_OBJ_DIR = $(FM_OBJ_DIR)/qfm
 QFM_OBJS = $(addprefix $(QFM_OBJ_DIR)/,$(notdir $(QFM_SOURCES:.c=.o)))
 FM_OBJS += $(QFM_OBJS)
-GENERATED_DIRS += $(QFM_DIR)/$(BUILD)
-
-### Build C files
-$(QFM_OBJ_DIR)/%.o: $(QFM_DIR)/%.c qmsi
-	$(call mkdir, $(QFM_OBJ_DIR))
-	$(CC) $(CFLAGS) -c -o $@ $<

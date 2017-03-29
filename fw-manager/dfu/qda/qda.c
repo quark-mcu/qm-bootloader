@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,35 +33,30 @@
 #include "qm_flash.h"
 #include "qm_init.h"
 
-#include "qda_packets.h"
-#include "../dfu.h"
-#include "../dfu_config.h"
+#include "qda.h"
 #include "../core/dfu_core.h"
+#include "../dfu.h"
+#include "../bl_data.h"
+#include "qda_packets.h"
 #include "xmodem.h"
 #include "xmodem_io_uart.h"
-
-#define DFU_BLOCK_SIZE (QM_FLASH_PAGE_SIZE_BYTES)
-/* Additional XMODEM_BLOCK_SIZE bytes needed because of QDA overhead */
-#define QDA_BUF_SIZE (DFU_BLOCK_SIZE + XMODEM_BLOCK_SIZE)
+#include "fw-manager_config.h"
 
 /*--------------------------------------------------------------------------*/
 /*                              MACROS                                      */
 /*--------------------------------------------------------------------------*/
 
-#define STALL_AND_BREAK_ON_ERR(func)                                           \
-	if ((func) != 0) {                                                     \
-		qda_stall();                                                   \
-		break;                                                         \
-	}
+/* Additional XMODEM_BLOCK_SIZE bytes needed because of QDA overhead */
+#define QDA_BUF_SIZE (QFU_BLOCK_SIZE + XMODEM_BLOCK_SIZE)
 
 /*--------------------------------------------------------------------------*/
 /*                    GLOBAL VARIABLES                                      */
 /*--------------------------------------------------------------------------*/
 
-/** The buffer for incoming and outgoing QDA packets. */
-/*
- * NOTE: optimization: for outgoing packets, consider using pre-compiled
- * packets instead of preparing them dynamically using qda_buf
+/**
+ * The buffer for incoming and outgoing QDA packets.
+ *
+ * Note: some outgoing packets are pre-compiled and have their own variable.
  */
 static uint8_t qda_buf[QDA_BUF_SIZE];
 
@@ -69,29 +64,20 @@ static uint8_t qda_buf[QDA_BUF_SIZE];
 /*                           FORWARD DECLARATIONS                           */
 /*--------------------------------------------------------------------------*/
 static void qda_process_pkt(uint8_t *data, size_t len);
-static void qda_ack();
-static void qda_stall();
+static void qda_ack(void);
+static void qda_stall(void);
 static void handle_upload_req(qda_upl_req_payload_t *req);
 static void qda_dfu_get_status_rsp(dfu_dev_state_t state,
 				   dfu_dev_status_t status,
 				   uint32_t poll_timeout);
 static void qda_dfu_get_state_rsp(dfu_dev_state_t state);
-static void qda_dev_dsc_rsp();
-static void qda_dfu_dsc_rsp();
+static void qda_dfu_dsc_rsp(void);
 
 /*--------------------------------------------------------------------------*/
 /*                            GLOBAL FUNCTIONS                              */
 /*--------------------------------------------------------------------------*/
-/**
- * Initialize QDA module.
- *
- * Initialize the Quark DFU Adaptation (QDA) module.
- *
- * @param[in] cfg	The DFU configuration.
- */
-/* NOTE: we can remove this init function and use global variables/functions for
- * optimization purposes */
-void qda_init()
+/* Initialize the QDA module (by initializing required modules). */
+void qda_init(void)
 {
 	xmodem_io_uart_init();
 	dfu_init();
@@ -103,7 +89,7 @@ void qda_init()
  * Receive and process QDA packets, until the communication becomes idle (i.e.,
  * no data is received for a certain amount of time).
  */
-void qda_receive_loop()
+void qda_receive_loop(void)
 {
 	int len;
 
@@ -113,10 +99,10 @@ void qda_receive_loop()
 		 *
 		 * xmodem_receive() is blocking: the function returns when the
 		 * XMODEM transfer is completed or an unrecoverable reception
-		 * error occurs (e.g., a transmission starts, but then
-		 * timeouts or the maximum number of retries is exceeded). The
-		 * function returns the length of the received data on success,
-		 * a negative error code otherwise.
+		 * error occurs (e.g., a transmission starts, but then timeouts
+		 * or the maximum number of retries is exceeded). The function
+		 * returns the length of the received data on success, a
+		 * negative error code otherwise.
 		 */
 		len = xmodem_receive_package(qda_buf, sizeof(qda_buf));
 		if (len > 0) {
@@ -128,7 +114,7 @@ void qda_receive_loop()
 		 * a timeout and not an error.
 		 *
 		 * For now we do not distinguish between a timeout and an
-		 * unrecoverable error.
+		 * unrecoverable error: in both cases we exit the loop.
 		 */
 	} while (len > 0);
 }
@@ -138,11 +124,11 @@ void qda_receive_loop()
 /*--------------------------------------------------------------------------*/
 
 /**
- * Process QDA packet.
+ * Process a QDA packet.
  *
  * Parse, process, and reply to an incoming QDA packet.
  *
- * @param[in] data The buffer containing the packet.
+ * @param[in] data The buffer containing the packet. Must not be null.
  * @param[in] len  The length of packet or its upper bound (since XMODEM may
  * 		   add some padding bytes).
  */
@@ -153,71 +139,109 @@ static void qda_process_pkt(uint8_t *data, size_t len)
 	qda_upl_req_payload_t *upload_req;
 	qda_set_alt_setting_payload_t *altset_req;
 	size_t expected_len;
-
 	dfu_dev_state_t state;
 	dfu_dev_status_t status;
 	uint32_t poll_timeout;
+	int retv;
 
 	pkt = (qda_pkt_t *)data;
 	expected_len = sizeof(*pkt);
 
+	/*
+	 * This check is not really needed when using XMODEM (since len will
+	 * always be > 128 bytes), but better safe than sorry.
+	 */
+	if (len < expected_len) {
+		qda_stall();
+		return;
+	}
+
 	switch (pkt->type) {
-	case QDA_PKT_DEV_DESC_REQ:
-		qda_dev_dsc_rsp();
-		break;
 	case QDA_PKT_DFU_DESC_REQ:
+		/* Handle a DFU descriptor request. */
 		qda_dfu_dsc_rsp();
-		break;
+		return;
 	case QDA_PKT_DFU_SET_ALT_SETTING:
+		/* Handle a 'set alternate setting' request. */
 		altset_req = (qda_set_alt_setting_payload_t *)pkt->payload;
-		STALL_AND_BREAK_ON_ERR(
-		    dfu_set_alt_setting(altset_req->alt_setting));
-		qda_ack();
-		break;
+		retv = dfu_set_alt_setting(altset_req->alt_setting);
+		if (retv == 0) {
+			qda_ack();
+			return;
+		}
+		qda_stall();
+		return;
 	case QDA_PKT_DFU_DNLOAD_REQ:
+		/* Handle a DFU DNLOAD request. */
 		dnload_req = (qda_dnl_req_payload_t *)pkt->payload;
 		expected_len += sizeof(*dnload_req) + dnload_req->data_len;
-		if ((len < expected_len) ||
-		    dfu_process_dnload(dnload_req->block_num, dnload_req->data,
-				       dnload_req->data_len)) {
-			qda_stall();
-			break;
+		if (len >= expected_len) {
+			retv = dfu_process_dnload(dnload_req->block_num,
+						  dnload_req->data,
+						  dnload_req->data_len);
+			if (retv == 0) {
+				qda_ack();
+				return;
+			}
 		}
-		qda_ack();
-		break;
+		qda_stall();
+		return;
 	case QDA_PKT_DFU_UPLOAD_REQ:
+		/* Handle a DFU UPLOAD request. */
 		upload_req = (qda_upl_req_payload_t *)pkt->payload;
-		/* UPLOAD requests are handled differently from the others in
-		 * order to reuse qda_buf */
+		/*
+		 * UPLOAD requests are handled differently from the others in
+		 * order to reuse qda_buf.
+		 */
 		handle_upload_req(upload_req);
-		break;
+		return;
 	case QDA_PKT_DFU_GETSTATUS_REQ:
-		STALL_AND_BREAK_ON_ERR(
-		    dfu_get_status(&status, &state, &poll_timeout));
-		qda_dfu_get_status_rsp(state, status, poll_timeout);
-		break;
+		/* Handle a DFU GET_STATUS request. */
+		retv = dfu_get_status(&status, &state, &poll_timeout);
+		if (retv == 0) {
+			qda_dfu_get_status_rsp(state, status, poll_timeout);
+			return;
+		}
+		qda_stall();
+		return;
 	case QDA_PKT_DFU_CLRSTATUS:
-		STALL_AND_BREAK_ON_ERR(dfu_clr_status());
-		qda_ack();
-		break;
+		/* Handle a DFU CLEAR_STATUS request. */
+		retv = dfu_clr_status();
+		if (retv == 0) {
+			qda_ack();
+			return;
+		}
+		qda_stall();
+		return;
 	case QDA_PKT_DFU_GETSTATE_REQ:
-		STALL_AND_BREAK_ON_ERR(dfu_get_state(&state));
-		qda_dfu_get_state_rsp(state);
-		break;
+		/* Handle a DFU GET_STATE request. */
+		retv = dfu_get_state(&state);
+		if (retv == 0) {
+			qda_dfu_get_state_rsp(state);
+			return;
+		}
+		qda_stall();
+		return;
 	case QDA_PKT_DFU_ABORT:
-		STALL_AND_BREAK_ON_ERR(dfu_abort());
-		qda_ack();
-		break;
+		/* Handle a DFU ABORT request. */
+		retv = dfu_abort();
+		if (retv == 0) {
+			qda_ack();
+			return;
+		}
+		qda_stall();
+		return;
 	case QDA_PKT_RESET:
+		/* Handle a reset request. */
 		qda_ack();
 		qm_soc_reset(QM_COLD_RESET);
-		break;
+		return;
 	/* QDA_PKT_DFU_DETACH should not be received */
+	/* QDA_PKT_DEV_DESC_REQ is not supported */
 	default:
-		/* NOTE: how to handle bad QDA requests? Send a QDA_STALL
-		 * message for now */
+		/* Send a stall message if QDA request is invalid. */
 		qda_stall();
-		break;
+		return;
 	}
 }
 
@@ -228,14 +252,11 @@ static void qda_process_pkt(uint8_t *data, size_t len)
  * |4B|TYPE    |
  * -------------
  */
-static void qda_ack()
+static void qda_ack(void)
 {
-	qda_pkt_t *pkt;
+	static const qda_pkt_t pkt = {.type = QDA_PKT_ACK};
 
-	pkt = (qda_pkt_t *)qda_buf;
-	pkt->type = QDA_PKT_ACK;
-
-	xmodem_transmit_package(qda_buf, sizeof(*pkt));
+	xmodem_transmit_package((uint8_t *)&pkt, sizeof(pkt));
 }
 
 /*
@@ -245,14 +266,11 @@ static void qda_ack()
  * |4B|TYPE    |
  * -------------
  */
-static void qda_stall()
+static void qda_stall(void)
 {
-	qda_pkt_t *pkt;
+	static const qda_pkt_t pkt = {.type = QDA_PKT_STALL};
 
-	pkt = (qda_pkt_t *)qda_buf;
-	pkt->type = QDA_PKT_STALL;
-
-	xmodem_transmit_package(qda_buf, sizeof(*pkt));
+	xmodem_transmit_package((uint8_t *)&pkt, sizeof(pkt));
 }
 
 /*
@@ -275,11 +293,11 @@ static void handle_upload_req(qda_upl_req_payload_t *req)
 	qda_upl_rsp_payload_t *rsp;
 	int retv;
 
-	/* store request parameters in temporary variables */
+	/* Store request parameters in temporary variables. */
 	block_num = req->block_num;
 	max_len = req->max_data_len;
 
-	/* prepare upload response packet */
+	/* Prepare upload response packet. */
 	pkt = (qda_pkt_t *)qda_buf;
 	pkt->type = QDA_PKT_DFU_UPLOAD_RSP;
 	rsp = (qda_upl_rsp_payload_t *)pkt->payload;
@@ -347,33 +365,6 @@ static void qda_dfu_get_state_rsp(dfu_dev_state_t state)
 }
 
 /*
- * Reply with a USB Device Descriptor response
- * -----------------
- * |4B|TYPE        |
- * -----------------
- * |2B|VENDOR_ID   |
- * -----------------
- * |2B|PRODUCT_ID  |
- * -----------------
- * |2B|DEVICE_BCD  |
- * -----------------
- */
-static void qda_dev_dsc_rsp()
-{
-	qda_pkt_t *pkt;
-	qda_dev_dsc_rsp_payload_t *rsp;
-
-	pkt = (qda_pkt_t *)qda_buf;
-	pkt->type = QDA_PKT_DEV_DESC_RSP;
-	rsp = (qda_dev_dsc_rsp_payload_t *)pkt->payload;
-	rsp->id_vendor = DFU_CFG_VID;
-	rsp->id_product = DFU_CFG_PID_DFU;
-	rsp->bcd_device = DFU_CFG_DEV_BCD;
-
-	xmodem_transmit_package(qda_buf, sizeof(*pkt) + sizeof(*rsp));
-}
-
-/*
  * Reply with a DFU Descriptors response
  *
  * ----------------------
@@ -390,19 +381,16 @@ static void qda_dev_dsc_rsp()
  * |2B|DFU_VERSION      |
  * ----------------------
  */
-static void qda_dfu_dsc_rsp()
+static void qda_dfu_dsc_rsp(void)
 {
-	qda_pkt_t *pkt;
-	qda_dfu_dsc_rsp_payload_t *rsp;
+	static const qda_dfu_dsc_rsp_t rsp = {
+	    .type = QDA_PKT_DFU_DESC_RSP,
+	    .num_alt_settings = DFU_NUM_ALT_SETTINGS,
+	    .bm_attributes = DFU_ATTRIBUTES,
+	    .detach_timeout = DFU_DETACH_TIMEOUT,
+	    .transfer_size = DFU_MAX_BLOCK_SIZE,
+	    .bcd_dfu_ver = DFU_VERSION_BCD,
+	};
 
-	pkt = (qda_pkt_t *)qda_buf;
-	pkt->type = QDA_PKT_DFU_DESC_RSP;
-	rsp = (qda_dfu_dsc_rsp_payload_t *)pkt->payload;
-	rsp->num_alt_settings = DFU_CFG_NUM_ALT_SETTINGS;
-	rsp->bm_attributes = DFU_CFG_DFU_ATTRIBUTES;
-	rsp->detach_timeout = DFU_CFG_DETACH_TIMEOUT;
-	rsp->transfer_size = DFU_CFG_MAX_BLOCK_SIZE;
-	rsp->bcd_dfu_ver = DFU_CFG_DFU_VERSION_BCD;
-
-	xmodem_transmit_package(qda_buf, sizeof(*pkt) + sizeof(*rsp));
+	xmodem_transmit_package((uint8_t *)&rsp, sizeof(rsp));
 }

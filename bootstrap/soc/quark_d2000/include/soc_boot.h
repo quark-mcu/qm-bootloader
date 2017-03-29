@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,13 +40,6 @@
 #define soc_boot_init_interrupt_controller(...) mvic_init(__VA_ARGS__)
 
 /* CPU halt function (used by the double fault handler) */
-#define soc_boot_halt_cpu(...) power_cpu_halt(__VA_ARGS__)
-
-/* Sleep function called when there is no application to run */
-/*
- * TODO: change this to a function that enables the JTAG pin as input and calls
- * power_soc_deep_sleep(POWER_WAKE_FROM_GPIO_COMP).
- */
-#define soc_boot_sleep(...) power_cpu_halt(__VA_ARGS__)
+#define soc_boot_halt_cpu(...) qm_power_cpu_halt(__VA_ARGS__)
 
 #endif /* __SOC_BOOT_H__ */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,11 +30,8 @@
 #ifndef __BL_DATA_H__
 #define __BL_DATA_H__
 
-#include "qm_soc_regs.h"
 #include "qm_flash.h"
 #include "soc_flash_partitions.h"
-
-#include "fw-manager_config.h"
 
 /**
  * Bootloader data structures.
@@ -60,25 +57,64 @@
  * ----------------------------------
  * |       Shadowed trim codes      | --> qm_flash_data_trim struct
  * ----------------------------------
+ * |           ROM version          | --> ROM Version
+ * ----------------------------------
+ * |        Protection gap          | --> Gap to align not-to-be-protected data
+ * |                                |     to 1KB and protect the rest with FPR
+ * ----------------------------------
  * | Array of partition descriptors | --> bl_flash_partition struct
  * ----------------------------------
  * |  Array of target descriptors   | --> bl_bool_target struct
  * ----------------------------------
- * |            CRC                 | --> CRC of the previous fields
+ * |          Firmware key          | --> Firmware Key
+ * ----------------------------------
+ * |         Revocation Key         | --> Revocation Key
+ * ----------------------------------
+ * |              CRC               | --> CRC of the previous fields
  * ----------------------------------
  */
 
 /** Number or partitions. */
 #if (BL_CONFIG_DUAL_BANK)
-/* 2 partitions per target */
+/* 2 partitions per target. */
 #define BL_FLASH_PARTITIONS_NUM (BL_BOOT_TARGETS_NUM * 2)
 #else
-/* 1 partitions per target */
+/* 1 partition per target. */
 #define BL_FLASH_PARTITIONS_NUM (BL_BOOT_TARGETS_NUM * 1)
 #endif
 
+/** The page where BL-Data main copy is located. */
+#define BL_DATA_SECTION_MAIN_PAGE (BL_DATA_SECTION_BASE_PAGE)
+/** The page where BL-Data backup copy is located. */
+#define BL_DATA_SECTION_BACKUP_PAGE (BL_DATA_SECTION_BASE_PAGE + 1)
+
+/** The address where BL-Data main copy is located. */
+#define BL_DATA_SECTION_MAIN_ADDR                                              \
+	(BL_DATA_FLASH_REGION_BASE +                                           \
+	 (BL_DATA_SECTION_MAIN_PAGE * QM_FLASH_PAGE_SIZE_BYTES))
+
+/** The address where BL-Data backup copy is located. */
+#define BL_DATA_SECTION_BACKUP_ADDR                                            \
+	(BL_DATA_FLASH_REGION_BASE +                                           \
+	 (BL_DATA_SECTION_BACKUP_PAGE * QM_FLASH_PAGE_SIZE_BYTES))
+
+/** The type of a target descriptor. */
 typedef struct bl_boot_target bl_boot_target_t;
+/** The type of a partition descriptor. */
 typedef struct bl_flash_partition bl_flash_partition_t;
+
+/**
+ * The structure of a SHA256 hash.
+ *
+ * Essentially, an array of 32 bytes.
+ */
+typedef union {
+	uint8_t u8[32];
+	uint32_t u32[8];
+} sha256_t;
+
+/** The type of HMAC keys used for authentication (i.e., 32-byte keys). */
+typedef sha256_t hmac_key_t;
 
 /**
  * The Boot Target Descriptor structure.
@@ -88,6 +124,7 @@ typedef struct bl_flash_partition bl_flash_partition_t;
 struct bl_boot_target {
 	/** The index of the active partition for this target. */
 	uint32_t active_partition_idx;
+
 	/**
 	 * The Security Version Number (SVN) associated with this target.
 	 *
@@ -114,12 +151,14 @@ struct bl_flash_partition {
 	const uint32_t first_page;
 	/** The size (in pages) of the partition. */
 	const uint32_t num_pages;
-	/** Application entry point address for the partition. */
-	/*
+
+	/**
+	 * Application entry point address for the partition.
+	 *
 	 * Note: the value of this filed may be computed at run-time (deriving
 	 * it from the 'controller' and 'first_page' values), but that will
 	 * increase bootloader code size, so we prefer to store it in BL-Data
-	 * directly
+	 * directly.
 	 */
 	volatile const uint32_t *const start_addr;
 
@@ -136,12 +175,29 @@ struct bl_flash_partition {
  * This structure defines how the bootloader data stored in flash is organized.
  */
 typedef struct bl_data {
-	/** Shadowed trim codes */
+	/** Shadowed trim codes. */
 	qm_flash_data_trim_t trim_codes;
+	/** Shadowed ROM version. */
+	uint32_t rom_version;
+
+	/**
+	 * Padding for FPR alignment.
+	 *
+	 * trim_codes and rom_version will be available for apps, while the rest
+	 * of the information won't. As the FPR protection is per 1KB block, we
+	 * need a gap between unprotected and protected data, so each part is
+	 * aligned with 1KB.
+	 */
+	uint8_t fpr_alignment[QM_FPR_GRANULARITY -
+			      sizeof(qm_flash_data_trim_t) - sizeof(uint32_t)];
 	/** The list of flash partition descriptors. */
 	bl_flash_partition_t partitions[BL_FLASH_PARTITIONS_NUM];
 	/** The list of boot target descriptors. */
 	bl_boot_target_t targets[BL_BOOT_TARGETS_NUM];
+	/** The current fw key. */
+	hmac_key_t fw_key;
+	/** The current revocation key. */
+	hmac_key_t rv_key;
 	/** The CRC of the previous fields. */
 	uint32_t crc;
 } bl_data_t;
@@ -156,16 +212,20 @@ extern bl_data_t *const bl_data;
  *
  * Check whether the BL-Data Section is valid and, if not, fix it. Fixing the
  * BL-Data section may consists in:
- * - Initializing it, if both BL-Data copy are invalid / missing;
+ * - Initializing it, if both BL-Data copy are invalid / missing and BL-Data
+ *   flash section is empty (i.e., entirely 0xFF);
  * - Copying BL-Data Main over BL-Data Backup, if BL-Data Backup is invalid;
- * - Copying BL-Data Backup over BL-Data Main, if BL-Data Main is invalid.
+ * - Copying BL-Data Backup over BL-Data Main, if BL-Data Main is invalid;
+ * - Entering an infinite loop if both copies are invalid and BL-Data flash
+ *   section is not empty (meaning that a hardware fault or security attack has
+ *   happened).
  *
- * Note: the initialization should include SoC specific data (e.g., trim codes
- * should be computed and stored as well), but that is not done for now.
+ * Note: the initialization include SoC specific data (e.g., trim codes are
+ * computed and stored).
  *
  * @return 0 on success, negative errno otherwise.
  */
-int bl_data_sanitize();
+int bl_data_sanitize(void);
 
 /**
  * Store shadowed BL-Data to flash, over both BL-Data Main and BL-Data Backup.
@@ -175,7 +235,7 @@ int bl_data_sanitize();
  *
  * @return 0 on success, negative errno otherwise.
  */
-int bl_data_shadow_writeback();
+int bl_data_shadow_writeback(void);
 
 /**
  * }@

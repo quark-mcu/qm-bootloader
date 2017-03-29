@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,47 +27,72 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "fm_hook.h"
+#include "qm_fpr.h"
+#include "qm_gpio.h"
+#include "qm_mpr.h"
+#include "qm_pinmux.h"
+#include "qm_soc_regs.h"
+
 #include "clk.h"
 
-#include "qm_soc_regs.h"
-#include "fw-manager.h"
 #include "fm_entry.h"
-#include "bl_data.h"
-#include "qm_gpio.h"
-#include "qm_pinmux.h"
+#include "fw-manager_config.h"
+#include "soc_flash_partitions.h"
 
-/* Flash configuration defines, valid when we are running at 32MHz */
-#define FLASH_US_COUNT (0x20)
-#define FLASH_WAIT_STATES (0x01)
+/** Check if the FM sticky bit is set */
+#define FM_STICKY_BIT_IS_ASSERTED() (QM_SCSS_GP->gps0 & BIT(QM_GPS0_BIT_FM))
+/** Set the FM sticky bit */
+#define FM_STICKY_BIT_ASSERT() (QM_SCSS_GP->gps0 |= BIT(QM_GPS0_BIT_FM))
+/** Clear the FM sticky bit */
+#define FM_STICKY_BIT_DEASSERT() (QM_SCSS_GP->gps0 &= ~BIT(QM_GPS0_BIT_FM))
 
-/** Flash configuration for writing to bl-data and QFU images. */
-static const qm_flash_config_t cfg_wr = {
-    .us_count = SYS_TICKS_PER_US_32MHZ / BIT(CLK_SYS_DIV_1),
-    .wait_states = FLASH_WAIT_STATES,
-    .write_disable = QM_FLASH_WRITE_ENABLE,
-};
+/*
+ * FPR configuration for FM mode:
+ * - Address range: 0 to max flash size
+ * - Allow access only to LMT (i.e., DMA and ARC cannot access any flash
+ *   portion)
+ * - FPR enabled and locked
+ */
+#define FM_MODE_FPR_CONFIG                                                     \
+	((QM_FPR_HOST_PROCESSOR << QM_FPR_RD_ALLOW_OFFSET) |                   \
+	 (FLASH_SIZE_KB << QM_FPR_UPPER_BOUND_OFFSET) |                        \
+	 (1 << QM_FPR_ENABLE_OFFSET) | (1 << QM_FPR_WRITE_LOCK_OFFSET))
 
-void fm_hook()
+/*
+ * MPR configuration for FM mode:
+ * - Address range: 0 to max SRAM size
+ * - Allow access only to LMT (i.e., DMA and ARC cannot access any SRAM
+ *   portion)
+ * - MPR enabled and locked
+ */
+#define FM_MODE_MPR_CONFIG                                                     \
+	((QM_SRAM_MPR_AGENT_MASK_HOST << QM_MPR_WR_EN_OFFSET) |                \
+	 (QM_SRAM_MPR_AGENT_MASK_HOST << QM_MPR_RD_EN_OFFSET) |                \
+	 (RAM_SIZE_KB << QM_FPR_UPPER_BOUND_OFFSET) | QM_MPR_EN_LOCK_MASK)
+
+static __inline__ void set_up_mpr(void)
 {
-	/*
-	 * Initialize flash for writing, since this may be needed by
-	 * bl_data_sanitize() and the FM mode (in entered).
-	 *
-	 * TODO: consider moving flash init and bl-data sanitizing back to rom
-	 * startup code and combine it with the trim-code setup code (which is
-	 * also initializing the flash controller).
-	 */
-	qm_flash_set_config(QM_FLASH_0, &cfg_wr);
-#if (QUARK_SE)
-	qm_flash_set_config(QM_FLASH_1, &cfg_wr);
-#endif
-	bl_data_sanitize();
+	/* Configure MPR to disable access by arc and dma. */
+	QM_MPR->mpr_cfg[0] = FM_MODE_MPR_CONFIG;
+}
 
+static __inline__ void set_up_fpr(void)
+{
+	int i;
+	/* Configure FPR to disable access by arc and dma. */
+	for (i = QM_FLASH_0; i < QM_FLASH_NUM; i++) {
+		QM_FLASH[i]->fpr_rd_cfg[QM_FPR_0] = FM_MODE_FPR_CONFIG;
+	}
+}
+
+void fm_hook(void)
+{
 	/*
 	 * Get FM pin status.
 	 *
-	 * We support both regular GPIO and always-on GPIO. However, they
-	 * must be handled differently:
+	 * We support both regular GPIO and always-on GPIO. However, they must
+	 * be handled differently:
 	 * - For AON-GPIO we cannot assume a default configuration since in case
 	 *   of warm resets the configuration is not re-initialized
 	 *   automatically;
@@ -78,6 +103,8 @@ void fm_hook()
 
 	clk_periph_enable(CLK_PERIPH_REGISTER | CLK_PERIPH_CLK |
 			  CLK_PERIPH_GPIO_REGISTER);
+
+#if (FM_CONFIG_ENABLE_GPIO_PIN)
 #if (FM_CONFIG_USE_AON_GPIO_PORT)
 	qm_gpio_reg_t *const gpio_ctrl = QM_GPIO[QM_AON_GPIO_0];
 	gpio_ctrl->gpio_inten &= ~BIT(FM_CONFIG_GPIO_PIN);
@@ -91,10 +118,21 @@ void fm_hook()
 	qm_gpio_read_pin(QM_GPIO_0, FM_CONFIG_GPIO_PIN, &state);
 	qm_pmux_pullup_en(FM_CONFIG_GPIO_PIN, false);
 #endif
+#else  /* Don't check FM GPIO status */
+	state = QM_GPIO_HIGH;
+#endif /* FM_CONFIG_ENABLE_GPIO_PIN */
+
 	/* Enter FM mode if FM sticky bit is set or FM_CONFIG_GPIO_PIN is low */
-	if (FM_STICKY_BITCHK() || (state == QM_GPIO_LOW)) {
-		FM_STICKY_BITCLR();
-		/* run the firmware management code; fm_main() never returns */
-		fm_entry();
+	if (FM_STICKY_BIT_IS_ASSERTED() || (state == QM_GPIO_LOW)) {
+		FM_STICKY_BIT_DEASSERT();
+		fm_secure_entry();
 	}
+}
+
+void fm_secure_entry(void)
+{
+	set_up_fpr();
+	set_up_mpr();
+	/* Run the firmware management code; fm_entry() never returns. */
+	fm_entry();
 }

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016, Intel Corporation
+# Copyright (c) 2017, Intel Corporation
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -43,6 +43,8 @@ null  :=
 space := $(null) $(null)
 separator := ', '
 list_to_str = $(subst $(space),$(separator),$(strip $(1)))
+support_error = $($(error Supported $(1) values are: \
+	'$(call list_to_str, $(2))'; given value is '$($(strip $(1)))') )
 
 ### Environment checks
 ifeq ($(BL_BASE_DIR),)
@@ -50,57 +52,53 @@ $(error BL_BASE_DIR is not defined)
 endif
 
 ### Parameter Check
-DEFAULT_SOC = quark_se
-SOC ?= $(DEFAULT_SOC)
+
+# Include supported modes and perform exception checks
+include $(MK_BASE_DIR)/modes.mk
+
 $(info SOC = $(SOC))
-SUPPORTED_SOCS = quark_se \
-                 quark_d2000
 ifeq ($(filter $(SOC),$(SUPPORTED_SOCS)),)
-$(error SOC=$(SOC) is not supported.)
+$(call support_error,SOC,$(SUPPORTED_SOCS))
 endif
 QMSI_BUILD_OPTIONS += SOC=$(SOC)
 
-TARGET ?= x86
 ifneq ($(TARGET),x86)
 $(error 'x86' is the only TARGET supported by the bootloader.)
 endif
 QMSI_BUILD_OPTIONS += TARGET=$(TARGET)
 
-BUILD ?= release
 $(info BUILD = $(BUILD))
-SUPPORTED_BUILDS = debug \
-                   release
 ifeq ($(filter $(BUILD),$(SUPPORTED_BUILDS)),)
-$(error Supported BUILD values are: $(SUPPORTED_BUILDS).)
+$(call support_error,BUILD,$(SUPPORTED_BUILDS))
 endif
-QMSI_BUILD_OPTIONS += BUILD=$(BUILD)
 
-CSTD ?= c99
+ifeq ($(BUILD),release)
+QMSI_BUILD += lto
+else
+QMSI_BUILD += $(BUILD)
+endif
+QMSI_BUILD_OPTIONS += BUILD=$(QMSI_BUILD)
+
 $(info CSTD = $(CSTD))
-SUPPORTED_CSTD = c99 \
-		 c90
 ifeq ($(filter $(CSTD),$(SUPPORTED_CSTD)),)
-$(error Supported CSTD values are 'c99' and 'c90'.)
+$(call support_error,CSTD,$(SUPPORTED_CSTDS))
 endif
 QMSI_BUILD_OPTIONS += CSTD=$(CSTD)
 
-ENABLE_FIRMWARE_MANAGER ?= none
 $(info ENABLE_FIRMWARE_MANAGER = $(ENABLE_FIRMWARE_MANAGER))
-SUPPORTED_FM_MODE_quark_se = none \
-			     uart \
-			     2nd-stage
-SUPPORTED_FM_MODE_quark_d2000 = none \
-				uart
 SUPPORTED_FM_MODE = $(SUPPORTED_FM_MODE_$(SOC))
-SUPPORTED_FM_MODE_STR = $(call list_to_str, $(SUPPORTED_FM_MODE))
 ifeq ($(filter $(ENABLE_FIRMWARE_MANAGER),$(SUPPORTED_FM_MODE)),)
-  $(error Supported ENABLE_FIRMWARE_MANAGER values are: \
-        '$(SUPPORTED_FM_MODE_STR)'; given value is '$(ENABLE_FIRMWARE_MANAGER)')
+$(call support_error,ENABLE_FIRMWARE_MANAGER,$(SUPPORTED_FM_MODE))
 endif
-ifeq ($(ENABLE_FIRMWARE_MANAGER),uart)
-ifeq ($(BUILD),debug)
-$(error "Cannot combine (first-stage) Firmware Management over UART with \
-	 debug build due to footprint constraints.")
+
+$(info ENABLE_FIRMWARE_MANAGER_AUTH = $(ENABLE_FIRMWARE_MANAGER_AUTH))
+ifeq ($(filter $(ENABLE_FIRMWARE_MANAGER_AUTH),$(SUPPORTED_FM_AUTH)),)
+$(call support_error,ENABLE_FIRMWARE_MANAGER_AUTH,$(SUPPORTED_FM_AUTH))
+endif
+ifeq ($(ENABLE_FIRMWARE_MANAGER_AUTH),1)
+ifeq ($(CSTD),c90)
+$(error Cannot combine Firmware Manager authentication with CSTD=c90 build \
+	option, due to limitations of external library TinyCrypt.)
 endif
 endif
 
@@ -113,7 +111,8 @@ ifeq ($(SOC),quark_se)
     $(info ENABLE_RESTORE_CONTEXT = $(ENABLE_RESTORE_CONTEXT))
     ifeq ($(filter $(ENABLE_RESTORE_CONTEXT),\
 	    $(SUPPORTED_ENABLE_RESTORE_CONTEXT)),)
-        $(error Supported ENABLE_RESTORE_CONTEXT values are '0' and '1'.)
+		$(call support_error,ENABLE_RESTORE_CONTEXT, \
+			$(SUPPORTED_ENABLE_RESTORE_CONTEXT))
     endif
     QMSI_BUILD_OPTIONS += ENABLE_RESTORE_CONTEXT=$(ENABLE_RESTORE_CONTEXT)
 endif
@@ -123,14 +122,14 @@ BOARD_HAS_RTC_XTAL ?= 1
 SUPPORTED_BOARD_HAS_RTC_XTAL = 0 \
 			       1
 ifeq ($(filter $(BOARD_HAS_RTC_XTAL),$(SUPPORTED_BOARD_HAS_RTC_XTAL)),)
-$(error Supported BOARD_HAS_RTC_XTAL values are '0' and '1'.)
+$(call support_error,BOARD_HAS_RTC_XTAL,$(SUPPORTED_BOARD_HAS_RTC_XTAL))
 endif
 
 BOARD_HAS_HYB_XTAL ?= 1
 SUPPORTED_BOARD_HAS_HYB_XTAL = 0 \
 			       1
 ifeq ($(filter $(BOARD_HAS_HYB_XTAL),$(SUPPORTED_BOARD_HAS_HYB_XTAL)),)
-$(error Supported BOARD_HAS_HYB_XTAL values are '0' and '1'.)
+$(call support_error,BOARD_HAS_HYB_XTAL,$(SUPPORTED_BOARD_HAS_HYB_XTAL))
 endif
 
 # Build verbosity level
@@ -138,7 +137,7 @@ V ?= 0
 SUPPORTED_VERBOSITY = 0 \
 		      1
 ifeq ($(filter $(V),$(SUPPORTED_VERBOSITY)),)
-$(error Supported V values are '0' and '1')
+$(call support_error,V,$(SUPPORTED_VERBOSITY))
 endif
 
 ### Tools
@@ -208,7 +207,7 @@ BUILD_DIR = $(BL_BASE_DIR)/build
 
 ### QMSI Section
 LIBNAME=qmsi
-LIBQMSI_DIR = $(QMSI_SRC_DIR)/build/$(BUILD)/$(SOC)/$(TARGET)/lib$(LIBNAME)
+LIBQMSI_DIR = $(QMSI_SRC_DIR)/build/$(QMSI_BUILD)/$(SOC)/$(TARGET)/lib$(LIBNAME)
 LIBQMSI_LIB_DIR = $(LIBQMSI_DIR)/lib
 LIBQMSI_INCLUDE_DIR = $(LIBQMSI_DIR)/include
 
@@ -238,7 +237,10 @@ LDFLAGS += -Xlinker --gc-sections
 ifeq ($(BUILD), debug)
 CFLAGS += -O0 -g -DDEBUG
 else # release
-CFLAGS += -Os -fomit-frame-pointer
+CFLAGS += -Os -fomit-frame-pointer -flto
+LDFLAGS += -flto
+# when LTO is used most compiler flag must be passed to the linker as well
+LDFLAGS += -Os -ffunction-sections -fdata-sections
 endif
 
 ifeq ($(CSTD), c99)
@@ -255,7 +257,7 @@ all:
 ### Clean up
 ### 1) Remove the specified BUILD/SOC/TARGET directory.
 clean::
-	$(RM) -r $(OBJ_DIRS) $(BUILD_DIR)/$(BUILD)/$(SOC)/$(TARGET)
+	$(RM) -r $(OBJ_DIRS)
 
 realclean::
 	$(RM) -r $(GENERATED_DIRS) $(BUILD_DIR)

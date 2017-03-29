@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016, Intel Corporation
+# Copyright (c) 2017, Intel Corporation
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -35,6 +35,7 @@
 .extern rom_startup
 .extern __stack_start
 .extern __x86_restore_info
+.extern __gdt_ram_start
 
 #
 # CR0 cache control bit definition
@@ -47,6 +48,45 @@
 #
 .equ GPS0_REGISTER, 0xb0800100
 .equ RESTORE_BIT, 1
+
+#
+# Flash protection definitions
+#
+.equ FLASH_0_CTRL_REGISTER, 0xb0100018
+.equ FLASH_1_CTRL_REGISTER, 0xb0200018
+.equ FL_WR_DIS, 0x00000010
+
+#
+# FPR bl_data protection definitions
+#
+.equ FPR_LOCK_OFFSET, 31
+.equ FPR_ENABLE_OFFSET, 30
+.equ FPR_UPR_BOUND_OFFSET, 10
+.equ FPR0_RD_CFG_REGISTER, 0xb010001C
+# Lock the FPR
+.equ FPR0_LOCK, 0x00000001 << FPR_LOCK_OFFSET
+# Enable the FPR
+.equ FPR0_ENABLE, 0x00000001 << FPR_ENABLE_OFFSET
+# FPR upper bond is the end of bl_data backup copy
+.equ FPR0_UPR_BOUND, 0x000000C0 << FPR_UPR_BOUND_OFFSET
+# FPR lower bond is 1KB over the begining of bl_data, so the trim codes are
+# accessible
+.equ FPR0_LWR_BOUND, 0x000000BD
+# FPR value as combination of previous fileds
+.equ FPR0_BL_DATA_PROTECTION, FPR0_LOCK | FPR0_ENABLE | FPR0_UPR_BOUND | FPR0_LWR_BOUND
+
+#
+# MPR 0 definitions for protecting Lakemont's stack, GDT and IDT.
+#
+.equ GDT_IDT_LOCATION_KB, 80
+.equ MPR0_RD_CFG_REGISTER, 0xb0400000
+.equ MPR_EN_LOCK_MASK, 0xC0000000
+.equ MPR_AGENT_MASK_HOST_RD_EN, 0x00000001 << 20
+.equ MPR_AGENT_MASK_HOST_WR_EN, 0x00000001 << 24
+.equ MPR0_UPR_BOUND, (GDT_IDT_LOCATION_KB - 1) << 10
+.equ MPR0_LWR_BOUND, GDT_IDT_LOCATION_KB - 1
+# MPR config is a combination of previous fileds
+.equ MPR0_LAKEMONT_PROTECTION, MPR_EN_LOCK_MASK | MPR_AGENT_MASK_HOST_RD_EN | MPR_AGENT_MASK_HOST_WR_EN | MPR0_UPR_BOUND | MPR0_LWR_BOUND
 
 .text
 #----------------------------------------------------------------------------
@@ -148,6 +188,19 @@ protected_mode_entry:
 	andl $~(CR0_CACHE_DISABLE + CR0_NO_WRITE), %eax
 	movl %eax, %cr0
 
+	#
+	# Copy GDT table to RAM, and load it again.
+	#
+
+	movl $gdt_table,%esi
+        movl $__gdt_ram_start,%edi
+        movl $GDT_SIZE,%ecx
+        movl %ecx,%eax
+        rep movsb
+        movw %ax,(%edi)
+        movl $__gdt_ram_start,2(%edi)
+        lgdtl (%edi)
+
 #if (ENABLE_RESTORE_CONTEXT)
 	#
 	# Check if we are returning from a 'sleep' state and jump to the
@@ -158,6 +211,26 @@ protected_mode_entry:
 	jnc regular_boot
 
 	movl $__x86_restore_info, %eax
+
+#if (ENABLE_FLASH_WRITE_PROTECTION)
+	#
+	# Write protect both flash controllers
+	#
+	orl $FL_WR_DIS, FLASH_0_CTRL_REGISTER
+	orl $FL_WR_DIS, FLASH_1_CTRL_REGISTER
+#endif /* ENABLE_FLASH_WRITE_PROTECTION */
+
+	#
+	# Re-write the FPR0 value to protect bl_data against read operations.
+	#
+	movl $FPR0_BL_DATA_PROTECTION, FPR0_RD_CFG_REGISTER
+
+	#
+	# Re-write the MPR0 value to protect Lakemont stack, gdt and idt
+        # against read operations by other agents.
+	#
+	movl $MPR0_LAKEMONT_PROTECTION, MPR0_RD_CFG_REGISTER
+
 	jmp *(%eax)
 
 regular_boot:
@@ -194,10 +267,7 @@ regular_boot:
 #	Global Descriptor Table (GDT) before the switch to 32 bit mode
 #
 #----------------------------------------------------------------------------
-Function:
-	.long gdt_table
-	.align 16
-
+.align 8
 gdt_table:
 	#
 	# GDT entry 0: Not used
@@ -209,6 +279,11 @@ gdt_table:
 	#
 	# GDT entry 1: Linear code segment descriptor
 	#
+	# We keep the accessed bit (A) in the type field set for all the
+	# segment descriptors so we can have the GDT placed in ROM.
+	# This complies with the recommendation from the Intel IA manual,
+	# Vol. 3A, section 3.4.5.1, last paragraph.
+	#
 	.equ LINEAR_CODE_SEL, . - gdt_table
 	.word 0xFFFF	# limit 0FFFFh
 	.word 0		# base 0
@@ -219,6 +294,11 @@ gdt_table:
 
 	#
 	# GDT entry 2: System data segment descriptor
+	#
+	# We keep the accessed bit (A) in the type field set for all the
+	# segment descriptors so we can have the GDT placed in ROM.
+	# This complies with the recommendation from the Intel IA manual,
+	# Vol. 3A, section 3.4.5.1, last paragraph.
 	#
 	.equ SYS_DATA_SEL, . - gdt_table
 	.word 0xFFFF	# limit 0FFFFh

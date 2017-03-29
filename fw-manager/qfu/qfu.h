@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
  * The Quark Firmware Update (QFU) format is the image format used for
  * application firmware updates. The QFU DFU request handler enables
  * application firmware updates via QFU images. The QFU handler is expected to
- * be associated to each alternate setting identifying an application bank
+ * be associated to each alternate setting identifying an application partition
  * (i.e., every available alternate setting except alternate setting 0, which
  * is reserved for the QFM protocol).
  */

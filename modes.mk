@@ -1,8 +1,5 @@
-#!/usr/bin/env python
-# @file This file merges the reset vector and the ROM code into an 8 KB image
-
 #
-# Copyright (c) 2016, Intel Corporation
+# Copyright (c) 2017, Intel Corporation
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -30,34 +27,41 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
-import os
-import sys
-import struct
+# List supported modes
+SUPPORTED_SOCS = quark_se \
+		 quark_d2000
 
-# Command line parameters
-romCodeFilename = sys.argv[1]
-outputFilename = sys.argv[2]
+SUPPORTED_BUILDS = debug \
+		   release
 
-imageFile = open(outputFilename, 'wb+')
-romCodeFile = open(romCodeFilename, 'rb').read()
-imageLen = 0x2000  # ROM size for Quark SE SOC is 8 KB (0x2000)
-dataAreaLen = 0x200  # We reserve 512 bytes for the OTP word and data storage
-offset = 0
+SUPPORTED_FM_MODE_quark_se = none \
+			     uart \
+			     2nd-stage
 
-# Pad data area with 0xFF
-for offset in range(dataAreaLen):
-    imageFile.write(b'\xFF')
-    offset += 1
+SUPPORTED_FM_MODE_quark_d2000 = none \
+				uart
 
-# Write ROM code
-imageFile.write(romCodeFile)
-romCodeLen = len(romCodeFile)
-offset += romCodeLen
+SUPPORTED_CSTD = c99 \
+		 c90
 
-imageFile.close()
+SUPPORTED_FM_AUTH = 0 \
+		    1
 
-print('. . . . . . . . . . . . . . . . . . . . . . . . . . . .')
-print('Image size = ' + hex(imageLen))
-print('Data area size = ' + hex(dataAreaLen))
-print('ROM code size = ' + hex(romCodeLen))
-print('. . . . . . . . . . . . . . . . . . . . . . . . . . . .')
+# Option to enable/disable flash write protection
+ENABLE_FLASH_WRITE_PROTECTION ?= 1
+SUPPORTED_ENABLE_FLASH_WRITE_PROTECTION = 0 \
+					  1
+$(info ENABLE_FLASH_WRITE_PROTECTION = $(ENABLE_FLASH_WRITE_PROTECTION))
+ifeq ($(strip $(filter $(ENABLE_FLASH_WRITE_PROTECTION),\
+				$(SUPPORTED_ENABLE_FLASH_WRITE_PROTECTION))), )
+$(call support_error,ENABLE_FLASH_WRITE_PROTECTION,\
+		     $(SUPPORTED_ENABLE_FLASH_WRITE_PROTECTION))
+endif
+
+# Exceptions
+ifeq ($(ENABLE_FIRMWARE_MANAGER),uart)
+ifeq ($(BUILD),debug)
+$(error "Cannot combine (first-stage) Firmware Management over UART with \
+	debug build due to footprint constraints.")
+endif
+endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,6 +38,15 @@
  *
  * \note If FM mode is entered, this function does not return.
  */
-void fm_hook();
+void fm_hook(void);
+
+/**
+ * Firmware Management secure entry.
+ *
+ * Set up the MPR and FPR policy and go into firmware management mode.
+ *
+ * \note This function does not return.
+ */
+void fm_secure_entry(void);
 
 #endif /* __FM_HOOK_H__ */

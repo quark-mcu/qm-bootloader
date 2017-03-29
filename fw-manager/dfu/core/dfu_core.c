@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,43 +27,47 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <string.h>
+
 #include "qm_common.h"
 
-#include "../dfu.h"
-#include "../dfu_config.h"
-#include "dfu_core.h"
-#include "../../qfu/qfu.h"
 #include "../../qfm/qfm.h"
+#include "../../qfu/qfu.h"
+#include "../dfu.h"
+#include "dfu_core.h"
 
 /*
  * NOTE: this implementation of the DFU state machine does not handle the
- * following DFU state:
+ * following DFU states:
  * - appIDLE
  * - appDETACH
  * - dfuMANIFEST-WAIT-RESET
  *
- * It does not because we never end up there when using QDA.
+ * It does not because we never end up there in the bootloader.
  */
 
-/** The current DFU state */
+/** The current DFU state. */
 static dfu_dev_state_t dfu_state;
-/** The current DFU status */
+/** The current DFU status. */
 static dfu_dev_status_t dfu_status;
 /**
- * The current DFU request handler (i.e., the DFU handler associated with the
- * active alternate setting).
+ * The current DFU request handler.
+ *
+ * This is the DFU handler associated with the active alternate setting.
  */
 static const dfu_request_handler_t *dfu_rh;
 /**
- * Block counter. Used to number the DNLOAD/UPLOAD blocks of a DNLOAD/UPLOAD
- * transfer, always starting from zero. The number is passed to the DFU request
- * handler.
+ * Block counter.
+ *
+ * Used to number the DNLOAD/UPLOAD blocks of a DNLOAD/UPLOAD transfer, always
+ * starting from zero. The number is passed to the DFU request handler.
  */
 static unsigned int block_cnt;
 /**
- * The expected block number of the next DNLOAD/UPLOAD block. This is different
- * from block_cnt since the first block sent by the host is not necessary
- * number zero.
+ * The expected block number of the next DNLOAD/UPLOAD block.
+ *
+ * This is different from block_cnt since the first block sent by the host is
+ * not necessary number zero.
  */
 static uint16_t next_block_num;
 
@@ -87,9 +91,8 @@ static void set_err(dfu_dev_status_t err_status)
  *
  * Restart from the initial state (DFU_IDLE) and clear the error status (by
  * setting it to DFU_STATUS_OK).
- *
  */
-static void reset_status()
+static void reset_status(void)
 {
 	dfu_state = DFU_STATE_DFU_IDLE;
 	dfu_status = DFU_STATUS_OK;
@@ -98,12 +101,12 @@ static void reset_status()
 /*-------------------------------------------------------------------------*/
 /*                        GLOBAL FUNCTIONS                                 */
 /*-------------------------------------------------------------------------*/
-/**
+/*
  * Initialize the DFU Core module.
  *
  * @return  0 if no error has occurred, an error code otherwise.
  */
-int dfu_init()
+int dfu_init(void)
 {
 	/* Activate the default alt setting, i.e., alt setting 0 */
 	/*
@@ -114,27 +117,27 @@ int dfu_init()
 	return dfu_set_alt_setting(0);
 }
 
-/**
+/*
  * Handle a USB Reset event.
  *
  * @return  0 if no error has occurred, an error code otherwise.
  */
-int dfu_usb_reset()
+int dfu_usb_reset(void)
 {
-	/* NOTE: yet to be implemented; we return error for now */
+	/* NOTE: yet to be implemented; we return error for now. */
 	return -EIO;
 }
 
-/**
+/*
  * Handle a USB Set Alternate Setting request for the DFU interface.
  *
- * @param alt_setting The alt_setting number to be activate.
+ * @param alt_setting The alt_setting number to be activated.
  *
  * @return  0 if no error has occurred, an error code otherwise.
  */
 int dfu_set_alt_setting(uint8_t alt_setting)
 {
-	if (alt_setting >= DFU_CFG_NUM_ALT_SETTINGS) {
+	if (alt_setting >= DFU_NUM_ALT_SETTINGS) {
 		return -EIO;
 	}
 	reset_status();
@@ -149,7 +152,7 @@ int dfu_set_alt_setting(uint8_t alt_setting)
 	return 0;
 }
 
-/**
+/*
  * Handle a DFU_DETACH request.
  *
  * @param[in] timeout_ms The time, in ms, within which the device must detach.
@@ -164,41 +167,50 @@ int dfu_detach(uint16_t timeout_ms)
 	return -EIO;
 }
 
-/**
+/*
  * Handle a DFU_DNLOAD request.
  *
  * @param[in] bock_num The block sequence number.
- * @param[in] data     The buffer containing the block data.
+ * @param[in] data     The buffer containing the block data. Must not be null.
  * @param[in] len      The size of the block, i.e., the amount of data in the
  * 		       buffer.
  *
  * @return  0 if no error has occurred, an error code otherwise.
  */
-int dfu_process_dnload(uint16_t block_num, const uint8_t *data, uint16_t len)
+int dfu_process_dnload(uint16_t block_num, uint8_t *data, uint16_t len)
 {
 	switch (dfu_state) {
 	case DFU_STATE_DFU_IDLE:
+		/* A new DNLOAD transfer is starting. */
 		if (len == 0) {
+			/* The size of the first block cannot be 0. */
 			set_err(DFU_STATUS_ERR_STALLEDPKT);
 			return -EIO;
 		}
 		block_cnt = 0;
 		break;
 	case DFU_STATE_DFU_DNLOAD_IDLE:
-		/* If the block is out of order */
+		/*
+		 * A DNLOAD transfer was already in progressing and we were
+		 * waiting for a new block.
+		 */
+		/* If the block is out of order go to the error state. */
 		if (block_num != next_block_num) {
 			/*
-			 * NOTE: this check is not mentioned in the DFU spec;
-			 * we keep it for now, but we may consider removing it
-			 * for code-size optimization purposes.
+			 * Note: this check is not mentioned in the DFU spec,
+			 * but we need it for security reasons (DFU request
+			 * handlers expect blocks to be sequential).
 			 */
 			set_err(DFU_STATUS_ERR_VENDOR);
 			return -EIO;
 		}
-		/* If the block is empty, it signals the end of the download */
+		/*
+		 * If the block is empty, then the host is signaling the end of
+		 * the download.
+		 */
 		if (len == 0) {
-			/* check if finalization is allowed */
-			if (dfu_rh->fin_dnload_xfer() == 0) {
+			/* Check if finalization is allowed. */
+			if (dfu_rh->fin_dnload_xfer(block_num) == 0) {
 				dfu_state = DFU_STATE_DFU_MANIFEST_SYNC;
 				return 0;
 			} else {
@@ -206,31 +218,40 @@ int dfu_process_dnload(uint16_t block_num, const uint8_t *data, uint16_t len)
 				return -EIO;
 			}
 		}
+		/* Jump to the code handling the block. */
 		break;
 	default:
+		/* In any other state, DNLOAD blocks are not allowed. */
 		set_err(DFU_STATUS_ERR_STALLEDPKT);
 		return -EIO;
 	}
 	/* we end up here if a DNLOAD transfer just started or is continuing */
 	next_block_num = block_num + 1;
 	dfu_rh->proc_dnload_blk(block_cnt, data, len);
+	/*
+	 * Since processing is done, clear the block data for security reasons
+	 * (the packet may contain a key-update packet with new keys).
+	 */
+	memset(data, 0, len);
 	block_cnt++;
 	dfu_state = DFU_STATE_DFU_DNLOAD_SYNC;
 
 	return 0;
 }
 
-/**
+/*
  * Handle a DFU_UPLOAD request.
  *
  * @param[in]  block_num The block sequence number.
  * @param[in]  req_len   The size of the block, i.e., the amount of data the
  * 			 host is requesting.
- * @param[out] data	 The buffer where to write the requested data.
+ * @param[out] data	 The buffer where to write the requested data. Must not
+ *			 be null.
  * @param[out] data_len  The actual amount of data provided by the host (the
  * 			 device shall never provide more data then req_len,
  * 			 while it can provide less data to notify the host
- * 			 that it has no more data to send).
+ * 			 that it has no more data to send). This pointer must
+ * 			 not be null.
  *
  * @return  0 if no error has occurred, an error code otherwise.
  */
@@ -239,27 +260,33 @@ int dfu_process_upload(uint16_t block_num, uint16_t req_len, uint8_t *data,
 {
 	switch (dfu_state) {
 	case DFU_STATE_DFU_IDLE:
+		/* A new UPLOAD transfer is starting. */
 		block_cnt = 0;
 		next_block_num = block_num;
+		/* Jump to the code handling the block. */
 		break;
 	case DFU_STATE_DFU_UPLOAD_IDLE:
+		/* Jump to the code handling the block. */
 		break;
 	default:
+		/* In any other state, UPLOAD blocks are not allowed. */
 		set_err(DFU_STATUS_ERR_STALLEDPKT);
 		return -EIO;
 	}
 	if (block_num != next_block_num) {
 		/*
-		 * NOTE: this check is not mentioned in the DFU spec;
-		 * should we keep it?
+		 * Note: this check is not mentioned in the DFU spec,
+		 * but we need it for security reasons (DFU request
+		 * handlers expect blocks to be sequential).
 		 */
 		set_err(DFU_STATUS_ERR_VENDOR);
 		return -EIO;
 	}
+	/* Handle UPLOAD block. */
 	dfu_rh->fill_upload_blk(block_cnt, data, req_len, data_len);
 	next_block_num = block_num + 1;
 	block_cnt++;
-	/* if the device write less bytes than required then upload is over */
+	/* If the device writes less bytes than required, the upload is over. */
 	if (*data_len < req_len) {
 		dfu_state = DFU_STATE_DFU_IDLE;
 	} else {
@@ -269,17 +296,17 @@ int dfu_process_upload(uint16_t block_num, uint16_t req_len, uint8_t *data,
 	return 0;
 }
 
-/**
- * Handle a DFU_GETSTATUS request
+/*
+ * Handle a DFU_GETSTATUS request.
  *
  * @param[out] status	       A pointer to the variable where to store the DFU
- * 			       status.
+ * 			       status. Must not be null.
  * @param[out] state	       A pointer to the variable where to store the DFU
- * 			       state.
+ * 			       state. Must not be null.
  * @param[out] poll_timeout_ms A pointer to the variable where to store the poll
  * 			       timeout (i.e., the time the host has to wait
  * 			       before issuing another GET_STATUS request). The
- * 			       value is in ms.
+ * 			       value is in ms. Must not be null.
  *
  * @return  0 if no error has occurred, an error code otherwise.
  */
@@ -289,12 +316,16 @@ int dfu_get_status(dfu_dev_status_t *status, dfu_dev_state_t *state,
 	switch (dfu_state) {
 	case DFU_STATE_DFU_DNBUSY:
 	case DFU_STATE_DFU_MANIFEST:
-		/* The host has to wait for the poll timeout! */
+		/*
+		 * If we receive a request when in DFU_DNBUSY or DFU_MANIFEST
+		 * state, it means that the host is not respecting our poll
+		 * timeout.
+		 */
 		set_err(DFU_STATUS_ERR_STALLEDPKT);
 		return -EIO;
 	case DFU_STATE_DFU_DNLOAD_SYNC:
 	case DFU_STATE_DFU_MANIFEST_SYNC:
-		/* update the internal dfu_status and get poll_timeout value */
+		/* Update the internal dfu_status and get poll_timeout value. */
 		dfu_rh->get_proc_status(&dfu_status, poll_timeout_ms);
 		if (dfu_status != DFU_STATUS_OK) {
 			dfu_state = DFU_STATE_DFU_ERROR;
@@ -313,7 +344,6 @@ int dfu_get_status(dfu_dev_status_t *status, dfu_dev_state_t *state,
 		 * (This is not a big issue: we are just not enforcing the
 		 * waiting time between two consecutive GET_STATUS requests; a
 		 * well-design host will respect it anyway).
-		 *
 		 */
 		break;
 	default:
@@ -325,14 +355,14 @@ int dfu_get_status(dfu_dev_status_t *status, dfu_dev_state_t *state,
 	return 0;
 }
 
-/**
+/*
  * Handle a DFU_CLRSTATUS request.
  *
  * @return  0 if no error has occurred, an error code otherwise.
  */
-int dfu_clr_status()
+int dfu_clr_status(void)
 {
-	/* we can receive a CLR_STATUS request only if an error has occurred */
+	/* We can receive a CLR_STATUS request only if an error has occurred. */
 	if (dfu_state != DFU_STATE_DFU_ERROR) {
 		set_err(DFU_STATUS_ERR_STALLEDPKT);
 		return -EIO;
@@ -342,10 +372,11 @@ int dfu_clr_status()
 	return 0;
 }
 
-/**
+/*
  * Handle a DFU_GETSTATE request.
  *
  * @param[out] state A pointer to the variable where to store the DFU state.
+ *		     Must not be null.
  *
  * @return  0 if no error has occurred, an error code otherwise.
  */
@@ -354,6 +385,7 @@ int dfu_get_state(dfu_dev_state_t *state)
 	switch (dfu_state) {
 	case DFU_STATE_DFU_DNBUSY:
 	case DFU_STATE_DFU_MANIFEST:
+		/* No request is allowed in DFU_DNBUSY or DFU_MANIFEST state. */
 		set_err(DFU_STATUS_ERR_STALLEDPKT);
 		return -EIO;
 	default:
@@ -362,13 +394,17 @@ int dfu_get_state(dfu_dev_state_t *state)
 	}
 }
 
-/**
+/*
  * Handle a DFU_ABORT request.
  *
  * @return  0 if no error has occurred, an error code otherwise.
  */
-int dfu_abort()
+int dfu_abort(void)
 {
+	/*
+	 * DFU_ABORT request can be received only when DNLOAD_IDLE or
+	 * UPLOAD_IDLE state.
+	 */
 	switch (dfu_state) {
 	case DFU_STATE_DFU_DNLOAD_IDLE:
 		dfu_rh->abort_dnload_xfer();

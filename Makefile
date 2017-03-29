@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016, Intel Corporation
+# Copyright (c) 2017, Intel Corporation
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -28,6 +28,32 @@
 #
 
 BL_BASE_DIR = .
+MK_BASE_DIR = $(BL_BASE_DIR)
+
+SOC ?= quark_se
+TARGET ?= x86
+BUILD ?= release
+CSTD ?= c99
+ENABLE_FIRMWARE_MANAGER ?= uart
+
+# Option ENABLE_FIRMWARE_MANAGER_AUTH is useless when the ROM is compiled with
+# 2nd-stage support.
+# We notify the user and internally we set it back to 0 (to avoid having the
+# '_hmac' string appended to the name of the binary).
+ifeq ($(ENABLE_FIRMWARE_MANAGER),2nd-stage)
+ifdef ENABLE_FIRMWARE_MANAGER_AUTH
+$(warning "WARNING: Option ENABLE_FIRMWARE_MANAGER_AUTH is useless when \
+	   compiling the ROM with 2nd-stage support, since FM functionality is \
+	   delegated to the 2nd-stage.")
+endif
+override ENABLE_FIRMWARE_MANAGER_AUTH = 0
+endif
+
+# Default value for ENABLE_FIRMWARE_MANAGER_AUTH is 1, unless firmware manager
+# is disabled (ENABLE_FIRMWARE_MANAGER == none)
+ENABLE_FIRMWARE_MANAGER_AUTH ?= $(if $(filter $(ENABLE_FIRMWARE_MANAGER),none),\
+				0,1)
+
 # The user is expected to define the QMSI_SRC_DIR environment variable and make
 # it point to the QMSI source directory.
 # If not, QMSI source directory is supposed to be a sibling of the bootloader
@@ -52,7 +78,7 @@ help:
 	$(info clean     - Clean all generated files for the given SOC)
 	$(info distclean - Clean all generated files for all SOCs)
 	$(info )
-	$(info By default SOC=$(DEFAULT_SOC).)
+	$(info By default SOC=quark_se.)
 	$(info )
 	$(info Verbosity of Make is controlled by V=0 / 1)
 	$(info By default V=0.)
@@ -60,16 +86,31 @@ help:
 	$(info List of supported values for SOC: $(SUPPORTED_SOCS))
 	$(info List of supported values for CSTD: c90 and c99)
 	$(info )
-	$(info To enable FW management (FM), use the ENABLE_FIRMWARE_MANAGER)
-	$(info build option.)
+	$(info To configure the FW management (FM) feature of the bootloader,)
+	$(info use the ENABLE_FIRMWARE_MANAGER build option.)
 	$(info ENABLE_FIRMWARE_MANAGER=uart enables FM over UART on the ROM.)
 	$(info ENABLE_FIRMWARE_MANAGER=2nd-stage delegates FM to the 2nd-stage)
 	$(info bootloader.)
-	$(info By default, ENABLE_FIRMWARE_MANAGER=none)
+	$(info ENABLE_FIRMWARE_MANAGER=none disables FM altogether.)
+	$(info By default, ENABLE_FIRMWARE_MANAGER=uart)
+	$(info )
+	$(info When FM mode is enabled, the option ENABLE_FIRMWARE_MANAGER_AUTH)
+	$(info can be used to enable/disable firmware authentication during)
+	$(info upgrades.)
+	$(info ENABLE_FIRMWARE_MANAGER_AUTH=1 enables authenticated upgrades.)
+	$(info ENABLE_FIRMWARE_MANAGER_AUTH=0 disables authenticated upgrades.)
+	$(info By default, ENABLE_FIRMWARE_MANAGER_AUTH=1)
 	$(info )
 	$(info To disable context saving on sleep for Quark SE, compile the ROM)
 	$(info with ENABLE_RESTORE_CONTEXT=0)
 	$(info By default, ENABLE_RESTORE_CONTEXT=1)
+	$(info )
+	$(info To enable/disable write-protection on flash memory, use the)
+	$(info ENABLE_FLASH_WRITE_PROTECTION build option. Disabling this is a)
+	$(info security risk as the firmware could be modified.)
+	$(info ENABLE_FLASH_WRITE_PROTECTION=0 disables flash write-protection.)
+	$(info ENABLE_FLASH_WRITE_PROTECTION=1 enables flash write-protection.)
+	$(info by default ENABLE_FLASH_WRITE_PROTECTION=1)
 	$(info )
 	$(info QMSI source code is needed for compilation. By default QMSI)
 	$(info code is expected to be located in '../qmsi'.)

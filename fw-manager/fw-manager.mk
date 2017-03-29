@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016, Intel Corporation
+# Copyright (c) 2017, Intel Corporation
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -28,21 +28,24 @@
 #
 
 FM_DIR = $(BL_BASE_DIR)/fw-manager
-OBJ_DIRS += $(FM_DIR)/$(BUILD)/$(SOC)
 FM_SOURCES = $(wildcard $(FM_DIR)/*.c)
-FM_OBJ_DIR = $(FM_DIR)/$(BUILD)/$(SOC)/$(OBJ)
+FM_OBJ_DIR = $(BASE_OBJ_DIR)/fm
 FM_OBJS = $(addprefix $(FM_OBJ_DIR)/,$(notdir $(FM_SOURCES:.c=.o)))
-GENERATED_DIRS += $(FM_DIR)/$(BUILD)
 
 ### Flags
 CFLAGS += -I$(FM_DIR)
 
 ### Build C files
+# This rules applies also to all FM sub-components since their objects are put
+# in sub-folders of FM_OBJ_DIR replicating the folder tree inside FM_DIR.
+# For instance, QDA objects are put into $(FM_OBJ_DIR)/dfu/qda since QDA
+# sources are located in $(FM_DIR)/dfu/qda.
 $(FM_OBJ_DIR)/%.o: $(FM_DIR)/%.c qmsi
-	$(call mkdir, $(FM_OBJ_DIR))
+	$(call mkdir, $(dir $@))
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 include $(FM_DIR)/entries/entries.mk
 include $(FM_DIR)/dfu/dfu.mk
 include $(FM_DIR)/qfm/qfm.mk
 include $(FM_DIR)/qfu/qfu.mk
+include $(FM_DIR)/crypto.mk

@@ -16,21 +16,23 @@ FM mode provides the following services to the users:
 
 * System information retrieval (SoC type, application version, security
   capability, etc.)
-* Application firmware update
+* Application firmware update (with authentication support)
 * Application firmware erase (erase of all the application code in flash)
+* Authentication key management
 
 The MCU enters FM mode only after an explicit request from the host. The
 mechanism used by the host to signal an Enter-FM request to the device depends
 on the specific communication link used for firmware management. In case of UART
 the host (or the user) must ground a specific pin and reset the device manually.
 
-A special case is when there is no application running on the device (i.e.,
-there is no valid application firmware). In such a case, the bootloader puts
-the device into sleep mode.
+A special case is when there is no x86 application running on the device (i.e.,
+there is no valid application firmware). In such a case, the bootloader enters
+FM mode automatically.
 
 When the host has completed its firmware management tasks, it can make the
-device exit FM mode by issuing a reset request. The device reboots and enters
-application mode or sleep mode if no application is present.
+device exit FM mode by issuing a reset request. The device reboots and, if an
+application is present, it enters application mode, otherwise, it re-enters
+FM mode.
 
 Protocol stack
 **************

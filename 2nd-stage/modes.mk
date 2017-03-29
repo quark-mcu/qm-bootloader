@@ -27,9 +27,19 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
-### Variables
-QFU_DIR = $(FM_DIR)/qfu
-QFU_OBJ_DIR = $(FM_OBJ_DIR)/qfu
-QFU_SOURCES = $(wildcard $(QFU_DIR)/*.c)
-QFU_OBJS = $(addprefix $(QFU_OBJ_DIR)/,$(notdir $(QFU_SOURCES:.c=.o)))
-FM_OBJS += $(QFU_OBJS)
+# List supported modes
+SUPPORTED_SOCS = quark_se
+
+SUPPORTED_TARGETS = x86
+
+SUPPORTED_BUILDS = debug \
+				   release
+
+SUPPORTED_FM_MODE_quark_se = uart \
+			     usb
+
+SUPPORTED_CSTD = c99 \
+		 		 c90
+
+SUPPORTED_FM_AUTH = 0 \
+					1

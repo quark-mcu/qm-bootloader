@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016, Intel Corporation
+# Copyright (c) 2017, Intel Corporation
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -38,13 +38,9 @@ BOOT_DIR = $(BL_BASE_DIR)/bootstrap
 # The (soc-independent) bootstrap code
 BOOT_SOURCES = $(wildcard $(BOOT_DIR)/*.c)
 # The object dir of the (soc-independent) bootstrap code
-BOOT_OBJ_DIR = $(BOOT_DIR)/$(BUILD)/$(SOC)/$(OBJ)
+BOOT_OBJ_DIR = $(BASE_OBJ_DIR)/bootstrap
 # The objects of the (soc-independent) bootstrap code
 BOOT_OBJS = $(addprefix $(BOOT_OBJ_DIR)/,$(notdir $(BOOT_SOURCES:.c=.o)))
-
-# Update variables for 'clean' and 'realclean'
-OBJ_DIRS += $(BOOT_DIR)/$(BUILD)/$(SOC)
-GENERATED_DIRS += $(BOOT_DIR)/$(BUILD)
 
 CFLAGS += -I$(BOOT_DIR)
 

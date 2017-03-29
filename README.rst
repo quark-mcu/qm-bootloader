@@ -34,7 +34,7 @@ External Dependencies
 
 * The ISSM toolchain is required to build the source code. It provides the
   IAMCU toolchain (i586-intel-elfiamcu). The currently supported version is
-  "2016-05-12".
+  "2017-02-07" for Linux and "2017-01-25" for Windows.
 * OpenOCD is required to flash the bootloader onto the SoC.
 
 * The toolchain is provided within the ISSM package or
@@ -72,6 +72,7 @@ All Documentation about the bootloader can be found in the doc folder:
 - `Bootloader flow      <doc/boot_flow.rst>`__
 - `Firmware Manager User Guide`_
 - `Firmware Manager Overview`_
+- `Authenticated Firmware Upgrade`_
 
 Building
 ********
@@ -103,6 +104,12 @@ should be set.
 
 ``export QM_BOOTLOADER_DIR=$HOME/bootloader``
 
+You must also get the latest TinyCrypt code from
+https://github.com/01org/tinycrypt. Checkout tag v0.2.6 and export the
+following environment variable:
+
+``export TINYCRYPT_SRC_DIR=/PATH/TO/SOURCE/tinycrypt``
+
 
 Building options
 ================
@@ -110,7 +117,13 @@ Building options
 The bootloader makefile supports the following build parameters:
         - SOC
         - ENABLE_FIRMWARE_MANAGER
+        - ENABLE_FIRMWARE_MANAGER_AUTH
         - ENABLE_RESTORE_CONTEXT
+        - ENABLE_FLASH_WRITE_PROTECTION
+
+Before changing any build parameters you must first do a clean:
+
+``make clean``
 
 Target SoC selection
 --------------------
@@ -135,12 +148,47 @@ Firmware Management
 -------------------
 
 ENABLE_FIRMWARE_MANAGER is used to enable firmware management inside of the
-bootloader,
+bootloader.
 
-By default, firmware management mode is not enabled.
+To disable firmware manager:
+
+``make ENABLE_FIRMWARE_MANAGER=none``
+
+To enable firmware manager over uart:
+
+``make ENABLE_FIRMWARE_MANAGER=uart``
+
+To enable firmware manager over usb:
+
+``make ENABLE_FIRMWARE_MANAGER=2nd-stage``
+
+In order to use the firmware manager over usb a 2nd-stage bootloader must be
+flashed, more information about this can be found in `Authenticated Firmware
+Upgrade`_.
+
+By default, firmware management mode is enabled over uart.
 
 More info on building and flashing an application using the firmware management
 mode can be found in the `Firmware Manager User Guide`_.
+
+Authenticated Firmware Management
+---------------------------------
+
+When firmware management is enabled ENABLE_FIRMWARE_MANAGEMENT_AUTH can be
+used to enable authentication in the firmware manager.
+
+To enable authentication:
+
+``ENABLE_FIRMWARE_MANAGER_AUTH=1``
+
+To disable authentication:
+
+``ENABLE_FIRMWARE_MANAGER_AUTH=0``
+
+Firmware manager authentication is enabled by default.
+
+More information on authenticated firmware management can be found in
+'Authenticated Firmware Upgrade'_.
 
 Return from sleep
 -----------------
@@ -156,6 +204,16 @@ The context of the Quark D2000 is restored by the hw. For that reason,
 the ENABLE_RESTORE_CONTEXT option has no effect on Quark D2000 SoC.
 
 By default, context save and restore management is enabled on Quark SE.
+
+Flash write protection
+----------------------
+
+By default the bootloader write-protects all the SoC flash memory to avoid any
+possible modification of the firmware.
+
+It's possible to deactivate this feature by compiling the bootloader with
+'ENABLE_FLASH_WRITE_PROTECTION=0'. This, however, will render the SoC vulnerable
+to malware gaining access to the firmware and overwriting it.
 
 Flashing
 ========
@@ -196,15 +254,16 @@ To perform a mass erase, enter the following GDB command:
 
 For D2000, the following command is used to flash the bootloader to the device:
 
-``(gdb) monitor load_image $PATH_TO_QM_BOOTLOADER/build/release/quark_d2000/rom/quark_d2000_rom.bin 0x0``
+``(gdb) monitor load_image $PATH_TO_QM_BOOTLOADER/build/release/quark_d2000/rom/quark_d2000_rom_fm_hmac.bin 0x0``
 
 
 For SE C1000, the following command is used to flash the bootloader to the
 device:
 
-``(gdb) monitor load_image $PATH_TO_QM_BOOTLOADER/build/release/quark_se/rom/quark_se_rom.bin 0xFFFFE000``
+``(gdb) monitor load_image $PATH_TO_QM_BOOTLOADER/build/release/quark_se/rom/quark_se_rom_fm_hmac.bin 0xFFFFE000``
 
 
 .. Links
 .. _`Firmware Manager User Guide`: doc/fw-manager-user-guide.rst
 .. _`Firmware Manager Overview`: doc/fw-manager-overview.rst
+.. _`Authenticated Firmware Upgrade`: doc/authenticated_firmware_upgrade

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -77,7 +77,7 @@ static struct __attribute__((__packed__)) xmodem_packet {
 /**
  * Send a single XMODEM packet.
  *
- * @param[in] data     The payload of the packet.
+ * @param[in] data     The payload of the packet. Must not be null.
  * @param[in] data_len The length of the payload. Must be at most 128 bytes.
  *		       If less, (random) padding is automatically added.
  * @param[in] pkt_no   The desired packet sequence number.
@@ -115,7 +115,7 @@ static int xmodem_send_pkt(const uint8_t *data, size_t data_len, uint8_t pkt_no)
  * ACK is received, the packet is retransmitted. This is done until
  * 'MAX_RETRANSMIT' is exceeded.
  *
- * @param[in] data     The payload of the packet.
+ * @param[in] data     The payload of the packet. Must not be null.
  * @param[in] data_len The length of the payload. Must be at most 128 bytes.
  *		       If less, (random) padding is automatically added.
  * @param[in] pkt_no   The packet sequence number.
@@ -181,14 +181,15 @@ static int xmodem_send_byte_with_retry(uint8_t cmd)
  *
  * @param[in] exp_seq_no The expected sequence number of the packet to be
  * 			 received.
- * @param[in] data       The buffer where to store the packet payload.
+ * @param[in] data       The buffer where to store the packet payload. Must not
+ *			 be null.
  * @param[in] len        The size of the buffer.
  *
  * @return Status code.
  * @retval SOH The packet has been successful received.
  * @retval DUP The received packet is a duplicate of the previous one (based on
- *             the expected sequence number); nothing has not been written to
- *             the data buffer.
+ *             the expected sequence number); nothing has been written to the
+ *             data buffer.
  * @retval ERR An error has occurred (either a timeout or the reception of
  * 	       invalid / corrupted data), but the XMODEM session is not
  *	       compromised.
@@ -207,15 +208,28 @@ static int xmodem_read_pkt(uint8_t exp_seq_no, uint8_t *data, size_t len)
 
 	cmd = ERR;
 
+	/*
+	 * Wait for a character from the sender; if getc() timeouts (or fails
+	 * due to an I/O error) return error.
+	 */
 	if (xmodem_io_getc(&cmd) < 0) {
 		return ERR;
 	}
 
+	/* The first char we receive should be either SOH or EOT. */
 	switch (cmd) {
 	case SOH:
+		/*
+		 * A new packet is arriving, jump to the code for handing it
+		 * (just after this switch-case block).
+		 */
 		printd("xmodem_read_pkt(): cmd: SOH\n");
 		break;
 	case EOT:
+		/*
+		 * The previous packet we received was the last one.
+		 * Transmission is completed.
+		 */
 		printd("xmodem_read_pkt(): cmd: EOT\n");
 		return EOT;
 	default:
@@ -250,10 +264,10 @@ static int xmodem_read_pkt(uint8_t exp_seq_no, uint8_t *data, size_t len)
 		return ERR;
 	}
 
-	/* Read the rest of the packet (seq_no, ~seq_no, data, and CRC) */
-	/* Start from seq_no, since we have already read soh */
+	/* Read the rest of the packet (seq_no, ~seq_no, data, and CRC). */
+	/* Start from seq_no, since we have already read SOH. */
 	buf = (uint8_t *)&pkt_buf.seq_no;
-	/* Compute end of buffer */
+	/* Compute end of buffer. */
 	buf_end = (uint8_t *)(&pkt_buf + 1);
 	while (buf < buf_end) {
 		if (xmodem_io_getc(buf++) < 0) {
@@ -289,10 +303,10 @@ static int xmodem_read_pkt(uint8_t exp_seq_no, uint8_t *data, size_t len)
 
 	/*
 	 * If we reach this point, the packet is the expected one and it has
-	 * been correctly received: now we can check that the buffer is big
-	 * enough to hold the payload (NOTE: this check should not be
-	 * anticipated, otherwise we risk to return a CAN in case of a simple
-	 * EOT from the sender).
+	 * been correctly received: now we can check that the user output
+	 * buffer is big enough to hold the payload (Note: this check should
+	 * not be anticipated, otherwise we risk to return a CAN in case of a
+	 * simple EOT from the sender).
 	 */
 	if (len < sizeof(pkt_buf.data)) {
 		printd("xmodem_read_pkt(): pkt: "
@@ -305,6 +319,12 @@ static int xmodem_read_pkt(uint8_t exp_seq_no, uint8_t *data, size_t len)
 	return SOH;
 }
 
+/*
+ * Receive data using XMODEM.
+ *
+ * The device starts sending 'C' (i.e., NAKs) to let the sender know that it is
+ * ready for reception. When the sender replies the communication starts.
+ */
 int xmodem_receive_package(uint8_t *buf, size_t buf_len)
 {
 	int status;
@@ -331,10 +351,13 @@ int xmodem_receive_package(uint8_t *buf, size_t buf_len)
 	retv = -1;
 	while (err_cnt < MAX_RX_ERRORS) {
 		printd("xmodem_receive(): sending cmd: %x\n", cmd);
+		/* Send control byte (ACK, CAN, NAK, 'C'). */
 		xmodem_io_putc(&cmd);
+		/* Wait for incoming packet. */
 		status = xmodem_read_pkt(exp_seq_no, &buf[data_cnt], buf_len);
 		switch (status) {
 		case SOH:
+			/* Packet successfully received. */
 			nak = NAK;
 			data_cnt += sizeof(pkt_buf.data);
 			buf_len -= sizeof(pkt_buf.data);
@@ -343,19 +366,30 @@ int xmodem_receive_package(uint8_t *buf, size_t buf_len)
 		/* no 'break' on purpose */
 		case DUP:
 			/*
+			 * Duplicated packet received.
+			 *
 			 * We must acknowledge duplicated packets to have the
-			 * sender transmit the next packet
+			 * sender transmit the next packet.
 			 */
 			cmd = ACK;
 			break;
 		case EOT:
+			/*
+			 * End-of-Transmission (sender has no more packets to
+			 * send.
+			 */
 			cmd = ACK;
 			retv = data_cnt;
 			goto exit;
 		case CAN:
+			/*
+			 * Sender has canceled transmission or an unrecoverable
+			 * error has happened.
+			 */
 			cmd = CAN;
 			goto exit;
 		default:
+			/* A timeout or a recoverable error has happened. */
 			err_cnt++;
 			cmd = nak;
 		}
@@ -364,12 +398,19 @@ exit:
 	if (retv < 0) {
 		printd("xmodem_receive(): ERROR: reception failed\n");
 	}
+	/* Send the last control bytes acknowledging EOT or CAN. */
 	xmodem_io_putc(&cmd);
 
 	return retv;
 }
 
-int xmodem_transmit_package(uint8_t *data, size_t len)
+/*
+ * Send data using XMODEM.
+ *
+ * The device waits for the receiver to send the first NAK ('C') and then
+ * starts the transmission (sending the data in 128-byte packets).
+ */
+int xmodem_transmit_package(const uint8_t *data, size_t len)
 {
 	int mlen;
 	uint8_t retransmit;
@@ -378,9 +419,15 @@ int xmodem_transmit_package(uint8_t *data, size_t len)
 
 	retransmit = MAX_RETRANSMIT;
 
+	/*
+	 * Wait for the first 'C' from the receiver and then jump to
+	 * transmission; return error if no 'C' is received after
+	 * MAX_RETRANSMIT attempts.
+	 */
 	while (retransmit--) {
 		printd("xmodem_transmit(): waiting for 'C' (%d)\n", retransmit);
 		rsp = ERR;
+		/* If getc() timeouts rsp value is not changed. */
 		xmodem_io_getc(&rsp);
 		if (rsp == 'C') {
 			goto start_transmit;
@@ -392,8 +439,9 @@ int xmodem_transmit_package(uint8_t *data, size_t len)
 start_transmit:
 	printd("xmodem_transmit(): starting transmission\n");
 	pkt_no = 1;
-	/* Send packets as long data */
+	/* Send packets as long as there is data to send. */
 	while (len) {
+		/* Packet length must be <= 128 bytes. */
 		mlen =
 		    (len >= sizeof(pkt_buf.data)) ? sizeof(pkt_buf.data) : len;
 		if (xmodem_send_pkt_with_retry(data, mlen, pkt_no) < 0) {
@@ -403,6 +451,7 @@ start_transmit:
 		len -= mlen;
 		pkt_no++;
 	}
+	/* Send End-of-Transmission constrol byte. */
 	if (xmodem_send_byte_with_retry(EOT) < 0) {
 		return -1;
 	}

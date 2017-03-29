@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,6 +51,8 @@
 #define BL_DATA_FLASH_REGION_BASE QM_FLASH_REGION_SYS_0_BASE
 /* The flash page where the BL-Data Section starts. */
 #define BL_DATA_SECTION_BASE_PAGE (94)
+/* The flash region for the FPR to protect BL-Data */
+#define BL_DATA_FPR_REGION QM_MAIN_FLASH_SYSTEM
 
 /* The size (in pages) of the System_0 flash region of Quark SE. */
 #define QM_FLASH_REGION_SYS_0_PAGES (96)
@@ -81,6 +83,15 @@
 #define BL_PARTITION_SIZE_LMT                                                  \
 	(QM_FLASH_REGION_SYS_1_PAGES - BL_2ND_STAGE_BOOTLOADER_PAGES)
 #endif /* BL_CONFIG_DUAL_BANK */
+
+#if (BL_PARTITION_SIZE_ARC > BL_PARTITION_SIZE_LMT)
+#define BL_PARTITION_MAX_PAGES BL_PARTITION_SIZE_ARC
+#else
+#define BL_PARTITION_MAX_PAGES BL_PARTITION_SIZE_LMT
+#endif
+
+#define FLASH_SIZE_KB (192)
+#define RAM_SIZE_KB (80)
 
 /* Number of boot targets. */
 #define BL_BOOT_TARGETS_NUM (2)

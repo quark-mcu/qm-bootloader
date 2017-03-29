@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,10 +36,17 @@
  * The behavior of this macro depends on the ENABLE_FIRMWARE_MANAGER build
  * option:
  *    - If ENABLE_FIRMWARE_MANAGER=uart, then the 'FM over UART' mode is
- * 	activated
+ * 	activated.
  *    - If ENABLE_FIRMWARE_MANAGER=2nd-stage, the 2nd-stage bootloader is
  *      executed; the actual transport used for FM will depend on the specific
  *      2nd-stage bootloader flashed.
+ *    - If ENABLE_FIRMWARE_MANAGER=usb, then the 'FM over USB' mode is
+ * 	activated.
+ *
+ * We rely on Makefile checks to prevent ENABLE_FIRMWARE_MANAGER values that
+ * are not valid for a specific build (e.g., ENABLE_FIRMWARE_MANAGER=usb passed
+ * when building the ROM or ENABLE_FIRMWARE_MANAGER=2nd-stage passed when
+ * building the 2nd-stage).
  */
 #if ENABLE_FIRMWARE_MANAGER_2ND_STAGE
 #define fm_entry(...) fm_entry_2nd_stage(__VA_ARGS__)

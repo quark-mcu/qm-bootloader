@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016, Intel Corporation
+# Copyright (c) 2017, Intel Corporation
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -40,16 +40,12 @@ BOOT_SOC_SOURCES = $(wildcard $(BOOT_SOC_DIR)/*.c)
 # The soc-dependent bootstrap assembly code
 BOOT_SOC_SOURCES_ASM = $(wildcard $(BOOT_SOC_DIR)/*.s)
 # The object dir of the soc-specific bootstrap code
-BOOT_SOC_OBJ_DIR = $(BOOT_SOC_DIR)/$(BUILD)/$(OBJ)
+BOOT_SOC_OBJ_DIR = $(BASE_OBJ_DIR)/bootstrap/soc/$(SOC)
 # The objects of the soc-specific bootstrap code
 BOOT_SOC_OBJS = $(addprefix $(BOOT_SOC_OBJ_DIR)/, \
 			    $(notdir $(BOOT_SOC_SOURCES:.c=.o)))
 BOOT_SOC_OBJS += $(addprefix $(BOOT_SOC_OBJ_DIR)/, \
 			    $(notdir $(BOOT_SOC_SOURCES_ASM:.s=.s.o)))
-
-# Update variables for 'clean' and 'realclean'
-OBJ_DIRS += $(BOOT_SOC_DIR)/$(BUILD)
-GENERATED_DIRS += $(BOOT_SOC_DIR)/$(BUILD)
 
 CFLAGS += -I$(BOOT_SOC_DIR)/include
 
@@ -60,6 +56,6 @@ $(BOOT_SOC_OBJ_DIR)/%.o: $(BOOT_SOC_DIR)/%.c qmsi
 
 ### Build assembly files
 $(BOOT_SOC_OBJ_DIR)/%.s.o: $(BOOT_SOC_DIR)/%.s
-	$(call mkdir, $(BOOT_SOC_DIR)/$(BUILD)/$(OBJ))
+	$(call mkdir, $(BOOT_SOC_OBJ_DIR))
 	$(CC) $(CFLAGS) -xassembler-with-cpp -c -o $@ $<
 

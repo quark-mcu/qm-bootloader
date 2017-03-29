@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,76 +47,82 @@
 /**
  * Initialize the DFU Core module.
  *
- * @return  0 if no error has occurred, an error code otherwise
+ * @return  0 if no error has occurred, an error code otherwise.
  */
-int dfu_init();
+int dfu_init(void);
 
 /**
- * Handle a USB Reset event
+ * Handle a USB Reset event.
  *
- * @return  0 if no error has occurred, an error code otherwise
+ * @return  0 if no error has occurred, an error code otherwise.
  */
-int dfu_usb_reset();
+int dfu_usb_reset(void);
 
 /**
- * Handle a USB Set Alternate Setting request for the DFU interface
+ * Handle a USB Set Alternate Setting request for the DFU interface.
  *
- * @param alt_setting The alt_setting number to be activate
+ * @param alt_setting The alt_setting number to be activate.
  *
- * @return  0 if no error has occurred, an error code otherwise
+ * @return  0 if no error has occurred, an error code otherwise.
  */
 int dfu_set_alt_setting(uint8_t alt_setting);
 
 /**
- * Handle a DFU_DETACH request
+ * Handle a DFU_DETACH request.
  *
- * @param[in] timeout_ms The time (in ms) within which the device must detach
+ * @param[in] timeout_ms The time (in ms) within which the device must detach.
  *
- * @return  0 if no error has occurred, an error code otherwise
+ * @return  0 if no error has occurred, an error code otherwise.
  */
 int dfu_detach(uint16_t timeout_ms);
 
 /**
  * Handle a DFU_DNLOAD request
  *
- * @param[in] bock_num The block sequence number
- * @param[in] data     The buffer containing the block data
+ * @param[in] bock_num The block sequence number.
+ * @param[in] data     The buffer containing the block data. Must not be null.
  * @param[in] len      The size of the block, i.e., the amount of data in the
- * 		       buffer
+ * 		       buffer.
  *
- * @return  0 if no error has occurred, an error code otherwise
+ * @note For security reasons (i.e., the DFU block may contain sensitive data
+ *       like a key update request with new authentication keys), the 'data'
+ *       buffer passed as input may be zeroed at the end of the processing.
+ *
+ * @return 0 if no error has occurred, an error code otherwise.
  */
-int dfu_process_dnload(uint16_t block_num, const uint8_t *data, uint16_t len);
+int dfu_process_dnload(uint16_t block_num, uint8_t *data, uint16_t len);
 
 /**
- * Handle a DFU_UPLOAD request
+ * Handle a DFU_UPLOAD request.
  *
  *
- * @param[in]  block_num The block sequence number
+ * @param[in]  block_num The block sequence number.
  * @param[in]  req_len   The size of the block, i.e., the amount of data the
- * 			 host is requesting
- * @param[out] data	 The buffer where to write the requested data
+ * 			 host is requesting.
+ * @param[out] data	 The buffer where to write the requested data. Must not
+ *			 be null.
  * @param[out] data_len  The actual amount of data provided by the host (the
  * 			 device shall never provide more data then req_len,
  * 			 while it can provide less data to notify the host
- * 			 that it has no more data to send)
+ * 			 that it has no more data to send). This pointer must
+ * 			 not be null.
  *
- * @return  0 if no error has occurred, an error code otherwise
+ * @return  0 if no error has occurred, an error code otherwise.
  */
 int dfu_process_upload(uint16_t block_num, uint16_t max_len, uint8_t *data,
 		       uint16_t *data_len);
 
 /**
- * Handle a DFU_GETSTATUS request
+ * Handle a DFU_GETSTATUS request.
  *
  * @param[out] status	       A pointer to the variable where to store the DFU
- * 			       status
+ * 			       status. Must not be null.
  * @param[out] state	       A pointer to the variable where to store the DFU
- * 			       state
+ * 			       state. Must not be null.
  * @param[out] poll_timeout_ms A pointer to the variable where to store the poll
  * 			       timeout (i.e., the time the host has to wait
  * 			       before issuing another GET_STATUS request). The
- * 			       value is in ms.
+ * 			       value is in ms. Must not be null.
  *
  * @return  0 if no error has occurred, an error code otherwise
  */
@@ -124,27 +130,28 @@ int dfu_get_status(dfu_dev_status_t *status, dfu_dev_state_t *state,
 		   uint32_t *poll_timeout_ms);
 
 /**
- * Handle a DFU_CLRSTATUS request
+ * Handle a DFU_CLRSTATUS request.
  *
- * @return  0 if no error has occurred, an error code otherwise
+ * @return  0 if no error has occurred, an error code otherwise.
  */
-int dfu_clr_status();
+int dfu_clr_status(void);
 
 /**
- * Handle a DFU_GETSTATE request
+ * Handle a DFU_GETSTATE request.
  *
- * @param[out] state A pointer to the variable where to store the DFU state
+ * @param[out] state A pointer to the variable where to store the DFU state.
+ *		     Must not be null.
  *
- * @return  0 if no error has occurred, an error code otherwise
+ * @return  0 if no error has occurred, an error code otherwise.
  */
 int dfu_get_state(dfu_dev_state_t *state);
 
 /**
- * Handle a DFU_ABORT request
+ * Handle a DFU_ABORT request.
  *
- * @return  0 if no error has occurred, an error code otherwise
+ * @return  0 if no error has occurred, an error code otherwise.
  */
-int dfu_abort();
+int dfu_abort(void);
 
 /**
  * @}

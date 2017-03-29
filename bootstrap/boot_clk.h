@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,6 +33,7 @@
 #include "qm_common.h"
 #include "qm_soc_regs.h"
 #include "clk.h"
+#include "flash_layout.h"
 
 /**
  * Bootloader clocking functions.
@@ -44,12 +45,11 @@
 /**
  * Set clock mode and divisor for the hybrid oscillator.
  *
- * Change the operating mode and clock divisor of the hybrid
- * clock source. Changing this clock speed affects all
- * peripherals.
+ * Change the operating mode and clock divisor of the hybrid clock source.
+ * Changing this clock speed affects all peripherals.
  *
  * @param[in] mode System clock source operating mode.
- * @param[in] div System clock divisor.
+ * @param[in] div  System clock divisor.
  *
  * @return Resulting status code.
  * @retval 0 if successful.
@@ -57,21 +57,32 @@
 int boot_clk_hyb_set_mode(const clk_sys_mode_t mode, const clk_sys_div_t div);
 
 /**
- * Populate the shadowed trim codes in the data region of flash.
+ * Setup trim-codes if needed.
  *
- * For each frequency, this function checks whether
- * the corresponding trim code is already in flash.
+ * Check if trim codes are already in flash. If not they are either copied
+ * from OTP to flash, or, if not available in OTP, computed and stored in
+ * flash.
  *
- * If not, it checks whether the code is in OTP.
- * If so, the code is copied in flash,
- * otherwise it is computed and eventually stored in flash.
+ * This function is expected to be called only during the first boot if
+ * firmware manager is not enabled.
+ */
+void boot_clk_trim_code_check_and_setup(void);
+
+/**
+ * Populate output parameter with trim codes.
  *
- * This function is expected to be called only during the first boot.
+ * For each frequency, this function checks whether the corresponding code is
+ * in OTP. Otherwise it is directly computed.
+ *
+ * This function is expected to be called only during the first boot if
+ * firmware manager is enabled.
+ *
+ * @param[out] data where trim codes are stored into. Must not be null.
  *
  * @return Resulting status code.
  * @retval 0 if successful.
  */
-int boot_clk_trim_code_setup(void);
+int boot_clk_trim_code_compute(qm_flash_data_trim_t *const ptr_trim_codes);
 
 /**
  * @}

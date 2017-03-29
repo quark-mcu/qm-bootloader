@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,22 +34,15 @@
 
 #include "bl_data.h"
 
-/*
- * NOTE: different compilers use different directives for packing structs;
- * therefore we define a macro whose value will depend on the specific compiler
- * used.
- * For now, we set it to the GCC directive.
- */
-#define __QM_ATTR_PACKED__ __attribute__((__packed__))
-
 /**
  * The enumeration of QFM packet types.
  */
 typedef enum {
 	/* Requests */
-	QFM_SYS_INFO_REQ = 0x444D0000, /**< System Information request. */
-	QFM_APP_ERASE = 0x444D0001,    /**< Application Erase request. */
-	QFM_UPDATE_KEY = 0x444D0002,   /**< Crypto Key Update request. */
+	QFM_SYS_INFO_REQ = 0x444D0000,  /**< System Information request. */
+	QFM_APP_ERASE = 0x444D0001,     /**< Application Erase request. */
+	QFM_UPDATE_FW_KEY = 0x444D0002, /**< Firmware Key Update request. */
+	QFM_UPDATE_RV_KEY = 0x444D0003, /**< Revocation Key Update request. */
 	/* Responses */
 	QFM_SYS_INFO_RSP = 0x444D8000, /**< System Information response. */
 } qfm_pkt_type_t;
@@ -73,25 +66,35 @@ typedef enum {
 /**
  * The generic structure of a QFM packet.
  */
-typedef struct __QM_ATTR_PACKED__ {
+typedef struct __attribute__((__packed__)) {
 	uint32_t type;     /**< The packet type, see qfm_pkt_type_t enum. */
 	uint8_t payload[]; /**< The type-specific payload/structure. */
 } qfm_generic_pkt_t;
 
-typedef struct __QM_ATTR_PACKED__ {
+/**
+ * The structure of a partition descriptor in a QFM_SYS_INFO_RSP packet.
+ */
+typedef struct __attribute__((__packed__)) {
+	/** Whether or not a partition is present on the partition. */
 	uint8_t app_present;
+	/** The version of the application. */
 	uint32_t app_version;
 } qfm_partition_dsc_t;
 
-typedef struct __QM_ATTR_PACKED__ {
+/**
+ * The structure of a target descriptor in a QFM_SYS_INFO_RSP packet.
+ */
+typedef struct __attribute__((__packed__)) {
+	/** The type of the target (i.e., x86 or ARC). */
 	const uint8_t target_type;
+	/** The index of the active partition associated with this target. */
 	uint8_t active_partition_idx;
 } qfm_target_dsc_t;
 
 /**
  * Type-specific structure for the QFM System Information response packet.
  */
-typedef struct __QM_ATTR_PACKED__ {
+typedef struct __attribute__((__packed__)) {
 	const uint32_t qfm_pkt_type;
 	const uint32_t sysupd_version; /**< The bootloader version. */
 	const uint8_t soc_type;	/**< The SOC type. */
@@ -104,5 +107,14 @@ typedef struct __QM_ATTR_PACKED__ {
 	/** List of partition descriptors. */
 	qfm_partition_dsc_t partitions[BL_FLASH_PARTITIONS_NUM];
 } qfm_sys_info_rsp_t;
+
+/**
+ * Type-specific structure for the QFM Key Update request packet.
+ */
+typedef struct __attribute__((__packed__)) {
+	uint32_t type;
+	hmac_key_t key;
+	sha256_t mac;
+} qfm_update_pkt_t;
 
 #endif /* __QFM_PACKETS_H__ */

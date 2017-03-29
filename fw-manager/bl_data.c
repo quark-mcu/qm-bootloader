@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,58 +34,79 @@
 
 #include "fw-manager_utils.h"
 #include "bl_data.h"
+#include "boot_clk.h"
+#include "rom_version.h"
 
-/** The page where BL-Data main copy is located. */
-#define BL_DATA_SECTION_MAIN_PAGE (BL_DATA_SECTION_BASE_PAGE)
-/** The page where BL-Data backup copy is located. */
-#define BL_DATA_SECTION_BACKUP_PAGE (BL_DATA_SECTION_BASE_PAGE + 1)
-
-/** The address where BL-Data main copy is located. */
-#define BL_DATA_SECTION_MAIN_ADDR                                              \
-	(BL_DATA_FLASH_REGION_BASE +                                           \
-	 (BL_DATA_SECTION_MAIN_PAGE * QM_FLASH_PAGE_SIZE_BYTES))
-
-/** The address where BL-Data backup copy is located. */
-#define BL_DATA_SECTION_BACKUP_ADDR                                            \
-	(BL_DATA_FLASH_REGION_BASE +                                           \
-	 (BL_DATA_SECTION_BACKUP_PAGE * QM_FLASH_PAGE_SIZE_BYTES))
+#define BL_DATA_BLANK_VALUE ((uint32_t)0xFFFFFFFF)
 
 #if (UNIT_TEST)
-/* test_flash_page is already defined qm_soc_regs.h but we need 2 pages for our
- * test. */
-uint8_t test_flash_backup_page[QM_FLASH_PAGE_SIZE_BYTES];
+/* Test variable simulating the 2-page BL-Data section in flash. */
+uint8_t test_bl_data_pages[QM_FLASH_PAGE_SIZE_BYTES * 2];
 
-static const bl_data_t *const bl_data_main = (bl_data_t *)test_flash_page;
-static const bl_data_t *const bl_data_bck = (bl_data_t *)test_flash_backup_page;
+static const bl_data_t *const bl_data_main =
+    (bl_data_t *)&test_bl_data_pages[0];
+static const bl_data_t *const bl_data_bck =
+    (bl_data_t *)&test_bl_data_pages[QM_FLASH_PAGE_SIZE_BYTES];
+uint8_t test_num_loops;
+#define FOREVER() --test_num_loops
+#define BL_DATA_SECTION_START ((uint32_t *)test_bl_data_pages)
+#define BL_DATA_SECTION_END ((uint32_t *)(test_bl_data_pages + 1))
 #else
+/* Pointer to BL-Data Main in flash. */
 static const bl_data_t *const bl_data_main =
     (bl_data_t *)BL_DATA_SECTION_MAIN_ADDR;
+/* Pointer to BL-Data Backup in flash. */
 static const bl_data_t *const bl_data_bck =
     (bl_data_t *)BL_DATA_SECTION_BACKUP_ADDR;
+/* The start address of the BL-Data section in flash. */
+#define BL_DATA_SECTION_START                                                  \
+	((uint32_t *)(BL_DATA_FLASH_REGION_BASE +                              \
+		      (BL_DATA_SECTION_BASE_PAGE * QM_FLASH_PAGE_SIZE_BYTES)))
+/* The end address of the BL-Data section in flash. */
+#define BL_DATA_SECTION_END                                                    \
+	((uint32_t *)(BL_DATA_FLASH_REGION_BASE +                              \
+		      ((BL_DATA_SECTION_BASE_PAGE + BL_DATA_SECTION_PAGES) *   \
+		       QM_FLASH_PAGE_SIZE_BYTES)))
+#define FOREVER() (1)
 #endif
 
-static bl_data_t bl_data_shadow = {
-    .targets = BL_TARGET_LIST, .partitions = BL_PARTITION_LIST, .crc = 0};
+/* The initialization values for the target descriptor array in BL-data. */
+static const bl_boot_target_t targets_defaults[BL_BOOT_TARGETS_NUM] =
+    BL_TARGET_LIST;
+/* The initialization values for the partition descriptor array in BL-data. */
+static const bl_flash_partition_t partitions_defaults[BL_FLASH_PARTITIONS_NUM] =
+    BL_PARTITION_LIST;
 
-/** Pointer to the bootloader data */
+/* The RAM-copy of BL-Data. */
+static bl_data_t bl_data_shadow;
+
+/* Pointer to the RAM-copy of the bootloader data (BL-Data). */
 bl_data_t *const bl_data = &bl_data_shadow;
 
-static void bl_data_init()
+/**
+ * Initialize BL-Data.
+ *
+ * Both the RAM copy and the flash copies of BL-Data are initialized. As part
+ * of the initialization process, trim codes are computed.
+ */
+static void bl_data_init(void)
 {
-	/*
-	 * NOTE: trim codes are previously computed and here we just copy them
-	 * to shadowed BL-Data which is then stored to flash (both in main and
-	 * backup copy). This works, but it is not optimal and must be changed.
-	 * Ideally, trim codes should be compute directly here.
-	 */
-	memcpy(bl_data, QM_FLASH_DATA_TRIM, sizeof(bl_data->trim_codes));
+	/* Trim codes computation. */
+	boot_clk_trim_code_compute(&bl_data->trim_codes);
+	/* Store ROM version in BL-Data. */
+	bl_data->rom_version = QM_VER_ROM;
+	/* Initialize target and partition descriptor lists. */
+	memcpy(&bl_data->targets, &targets_defaults, sizeof(bl_data->targets));
+	memcpy(&bl_data->partitions, &partitions_defaults,
+	       sizeof(bl_data->partitions));
+	/* Save BL-Data to flash. */
 	bl_data_shadow_writeback();
 }
 
 /**
  * Copy the BL-Data struct passed as input to a specific flash page.
  *
- * @param[in] A pointer to the BL-Data to be saved on flash.
+ * @param[in] A pointer to the BL-Data to be saved in flash. Must not be null.
  * @patam[in] The flash page where to save the BL-Data.
  */
 static void bl_data_copy(const bl_data_t *data, int bl_page)
@@ -96,18 +117,43 @@ static void bl_data_copy(const bl_data_t *data, int bl_page)
 }
 
 /**
+ * Erase partition.
+ *
+ * Erase all the pages of an application partition.
+ *
+ * @param[in] part The partition to be erased. Must not be null.
+ */
+static void bl_data_erase_partition(const bl_flash_partition_t *part)
+{
+	uint32_t page;
+	qm_flash_reg_t *flash_regs;
+
+	for (page = part->first_page;
+	     page < (part->first_page + part->num_pages); page++) {
+		qm_flash_page_erase(part->controller, QM_FLASH_REGION_SYS,
+				    page);
+	}
+	/* Flash content has changed, flush prefetch buffer. */
+	flash_regs = QM_FLASH[part->controller];
+	flash_regs->ctrl |= QM_FLASH_CTRL_PRE_FLUSH_MASK;
+	flash_regs->ctrl &= ~QM_FLASH_CTRL_PRE_FLUSH_MASK;
+}
+
+/**
  * Sanitize application flash partitions.
  *
- * Check and fix inconsistent partitions. Fixing consists in erasing the first
- * page of the partition to ensure that it will not be booted.
+ * Check and fix inconsistent partitions. Fixing consists in erasing the entire
+ * partition and marking it back as consistent.
+ *
+ * @note Empty partitions are not booted, even if marked as consistent.
  *
  * @return Whether or not a writeback of bl-data is needed.
  * @retval false Writeback not needed (no partition has been fixed and bl-data
  * 		 has not been updated).
  * @retval true  Writeback needed (at least one partition has been fixed and
- *		  therefore bl-data has been updated).
+ *		 therefore bl-data has been updated).
  */
-static bool bl_data_sanitize_partitions()
+static bool bl_data_sanitize_partitions(void)
 {
 	int wb_needed;
 	int i;
@@ -118,9 +164,7 @@ static bool bl_data_sanitize_partitions()
 	for (i = 0; i < BL_FLASH_PARTITIONS_NUM; i++) {
 		part = &bl_data->partitions[i];
 		if (part->is_consistent == false) {
-			qm_flash_page_erase(part->controller,
-					    QM_FLASH_REGION_SYS,
-					    part->first_page);
+			bl_data_erase_partition(part);
 			part->is_consistent = true;
 			wb_needed = true;
 		}
@@ -129,72 +173,95 @@ static bool bl_data_sanitize_partitions()
 	return wb_needed;
 }
 
+/**
+ * Loop infinitely if BL-Data flash section is not entirely blank.
+ *
+ * Check that the entire BL-Data flash section (i.e., both BL-Data Main page and
+ * BL-Data Backup page) is blank.
+ *
+ * If the check fails, this function never returns and execution is stopped.
+ */
+static void bl_loop_if_not_blank(void)
+{
+	const uint32_t *ptr;
+
+	for (ptr = BL_DATA_SECTION_START; ptr < BL_DATA_SECTION_END; ptr++) {
+		if (*ptr != BL_DATA_BLANK_VALUE) {
+			/*
+			 * Check has not succeeded: as the device could be
+			 * compromised, execution is stopped.
+			 */
+			qm_irq_disable();
+			while (FOREVER()) {
+			}
+		}
+	}
+}
+
 /*
  * Check the validity of BL-Data and fix/init it if necessary.
  *
  * The logic of this functions is defined in conjunction with the firmware
  * image update logic (see QFU module).
  */
-int bl_data_sanitize()
+int bl_data_sanitize(void)
 {
-	uint32_t crc_main;
-	uint32_t crc_bck;
-
-	crc_main = (uint16_t)fm_crc16_ccitt((uint8_t *)bl_data_main,
-					    offsetof(bl_data_t, crc));
-	crc_bck = (uint16_t)fm_crc16_ccitt((uint8_t *)bl_data_bck,
-					   offsetof(bl_data_t, crc));
+	const uint32_t crc_main =
+	    fm_crc16_ccitt((uint8_t *)bl_data_main, offsetof(bl_data_t, crc));
+	const uint32_t crc_bck =
+	    fm_crc16_ccitt((uint8_t *)bl_data_bck, offsetof(bl_data_t, crc));
 
 	if (bl_data_main->crc != crc_main) {
 		if (bl_data_bck->crc != crc_bck) {
 			/*
 			 * Both BL-Data Main and BL-Data Backup are invalid.
 			 * This is expected when the BL-Data flash section has
-			 * not been initialized yet.
-			 *
-			 * Perform initial device provisioning: initialize the
-			 * BL-Data regions of flash.
+			 * not been initialized yet. We expect the entire
+			 * BL-Data flash section (i.e., the entire two pages)
+			 * to be blank: if not, the following function call
+			 * never returns.
+			 */
+			bl_loop_if_not_blank();
+			/*
+			 * Perform initial device provisioning:
+			 * initialize the BL-Data section in flash and the
+			 * RAM-copy of BL-Data.
 			 */
 			bl_data_init();
 		} else {
 			/*
-			 * BL-Main is corrupted. This is expected when a
-			 * previous firmware image update failed.
+			 * BL-Main is corrupted. This can happen when a
+			 * previous firmware image upgrade failed while
+			 * updating BL-Data Main.
 			 *
 			 * Restore BL-Data Main by copying the content of
-			 * BL-Data Backup into it.
+			 * BL-Data Backup over it.
 			 */
 			bl_data_copy(bl_data_bck, BL_DATA_SECTION_MAIN_PAGE);
 		}
-	} else {
-		if (crc_main != crc_bck) {
-			/*
-			 * BL-Data Main is valid and up to date, but BL-Data
-			 * Backup has a different checksum than BL-Data Main.
-			 * This means that BL-Data Backup is either corrupted
-			 * (expected when the previous firmware update
-			 * has failed while updating BL-Data backup) or
-			 * outdated (expected when the previous firmware
-			 * update has failed after updating BL-Data Main, but
-			 * before beginning to update BL-Data Backup).
-			 *
-			 * Restore BL-Data Backup with the content of BL-Data
-			 * Main.
-			 */
-			bl_data_copy(bl_data_main, BL_DATA_SECTION_BACKUP_PAGE);
-		}
+	} else if (memcmp(bl_data_main, bl_data_bck, sizeof(bl_data_t))) {
+		/*
+		 * BL-Data Main is valid and up to date, but BL-Data Backup
+		 * has a different content than BL-Data Main. This means
+		 * that BL-Data Backup is either corrupted (expected when
+		 * the previous firmware update has failed while updating
+		 * BL-Data backup) or outdated (expected when the previous
+		 * firmware update has failed after updating BL-Data Main,
+		 * but before beginning to update BL-Data Backup).
+		 *
+		 * Restore BL-Data Backup with the content of BL-Data Main.
+		 */
+		bl_data_copy(bl_data_main, BL_DATA_SECTION_BACKUP_PAGE);
 	}
 	/*
-	 * Update the shadowed BL-Data in RAM with the content of BL-Data
-	 * Main
+	 * Update the shadowed BL-Data in RAM with the content of BL-Data Main
 	 */
 	memcpy(bl_data, bl_data_main, sizeof(*bl_data));
 	/*
-	 * NOTE: if any partition is sanitized, shadowed bl-data is updated and
+	 * Now that BL-Data is consistent, we can sanitize partitions.
+	 *
+	 * Note: if any partition is sanitized, shadowed bl-data is updated and
 	 * need to be written back.
-	 * Consider restructuring the code in this function to reduce the
-	 * number of bl-data writes (the restructuring will probably increase
-	 * footprint).
 	 */
 	if (bl_data_sanitize_partitions()) {
 		bl_data_shadow_writeback();
@@ -203,11 +270,16 @@ int bl_data_sanitize()
 	return 0;
 }
 
-/* Store BL-Data to flash */
-int bl_data_shadow_writeback()
+/*
+ * Store BL-Data to flash.
+ *
+ * The RAM-copy of BL-Data is written back to flash, on both pages: BL-Data
+ * Main first, BL-Data backup then.
+ */
+int bl_data_shadow_writeback(void)
 {
-	bl_data->crc = (uint16_t)fm_crc16_ccitt((uint8_t *)bl_data,
-						offsetof(bl_data_t, crc));
+	bl_data->crc =
+	    fm_crc16_ccitt((uint8_t *)bl_data, offsetof(bl_data_t, crc));
 	bl_data_copy(bl_data, BL_DATA_SECTION_MAIN_PAGE);
 	bl_data_copy(bl_data, BL_DATA_SECTION_BACKUP_PAGE);
 

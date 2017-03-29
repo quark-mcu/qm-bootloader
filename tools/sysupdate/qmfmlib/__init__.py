@@ -1,6 +1,6 @@
 #!/usr/bin/python -tt
 # -*- coding: utf-8 -*-
-# Copyright (c) 2016, Intel Corporation
+# Copyright (c) 2017, Intel Corporation
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -53,6 +53,6 @@ Example usage::
 
 from qmfmlib.qfu import QFUHeader, QFUImage, QFUException
 from qmfmlib.dfu import DFUImage, DFUException
-from qmfmlib.qfm import QFMRequest, QFMResponse, QFMSysInfo, QFMException
+from qmfmlib.qfm import QFMRequest, QFMSetKey, QFMResponse, QFMSysInfo, QFMException
 
-__version__ = "1.3"
+__version__ = "1.4"

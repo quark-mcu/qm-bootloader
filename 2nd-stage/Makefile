@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016, Intel Corporation
+# Copyright (c) 2017, Intel Corporation
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -30,18 +30,22 @@
 ### 2nd Stage Bootloader makefile
 
 ### Variables
-APP_NAME = 2nd_stage_usb
+APP_NAME = 2nd_stage
+APP_DIR := .
+MK_BASE_DIR = $(APP_DIR)
 SOC = quark_se
 TARGET = x86
 BL_BASE_DIR := ..
-APP_DIR := .
-QMSI_SRC_DIR ?= $(BL_BASE_DIR)/../qmsi
 
-ifneq ($(SOC).$(TARGET), quark_se.x86)
-$(error Only SOC=quark_se and TARGET=x86 are supported.)
-endif
+BUILD ?= release
+CSTD ?= c99
+ENABLE_FIRMWARE_MANAGER ?= usb
+ENABLE_FIRMWARE_MANAGER_AUTH ?= 1
+
+APP_NAME := $(APP_NAME)_$(ENABLE_FIRMWARE_MANAGER)
 
 2ND_STAGE_BUILD_DIR = $(APP_DIR)/$(BUILD)/$(SOC)/$(TARGET)
+2ND_STAGE_OBJ_DIR = $(2ND_STAGE_BUILD_DIR)/$(OBJ)
 BIN_FILE = $(2ND_STAGE_BUILD_DIR)/$(BIN)/$(APP_NAME).bin
 OBJ_DIRS += $(2ND_STAGE_BUILD_DIR)
 GENERATED_DIRS += $(APP_DIR)/$(BUILD)
@@ -50,36 +54,61 @@ GENERATED_DIRS += $(APP_DIR)/$(BUILD)
 		  $(notdir $(2ND_STAGE_SRCS:.c=.o)))
 CFLAGS += -DPRINTF_ENABLE -DPUTS_ENABLE
 CFLAGS += -DSTDOUT_UART_1 -DUART1_FTDI
-CFLAGS += -DENABLE_FIRMWARE_MANAGER=1 -DENABLE_FIRMWARE_MANAGER_USB=1
+CFLAGS += -DENABLE_FIRMWARE_MANAGER=1
+
+# Add asserts for the 2nd stage booloader to improve security.
+ifeq ($(BUILD),release)
+CFLAGS += -DQM_CHECK_ASSERT=1 -DASSERT_ENABLE
+endif
+
+ifeq ($(ENABLE_FIRMWARE_MANAGER), usb)
+CFLAGS += -DENABLE_FIRMWARE_MANAGER_USB=1
+endif
+
+ifeq ($(ENABLE_FIRMWARE_MANAGER),uart)
+CFLAGS += -DENABLE_FIRMWARE_MANAGER_UART=1
+endif
+
 CFLAGS += -DBL_HAS_2ND_STAGE=1
+CFLAGS += -I$(BL_BASE_DIR)/bootstrap
 # Include SOC-specific bootloader headers
 CFLAGS += -I$(BL_BASE_DIR)/bootstrap/soc/$(SOC)/include
 
 LINKER_FILE := $(APP_DIR)/2nd_stage.ld
 
+# Define BASE_OBJ_DIR for included makefiles
+BASE_OBJ_DIR = $(2ND_STAGE_OBJ_DIR)
+
 ### Make includes
 # TODO: Remove ROM build options from base.mk
 include $(BL_BASE_DIR)/base.mk
-# Define ENABLE_FIRMWARE_MANAGER=usb so that USB/DFU objects are added to
 # FM_OBJS
-ENABLE_FIRMWARE_MANAGER = usb
 include $(BL_BASE_DIR)/fw-manager/fw-manager.mk
 2ND_STAGE_OBJS += $(FM_OBJS)
+include $(BL_BASE_DIR)/bootstrap/boot.mk
+2ND_STAGE_OBJS += $(BOOT_OBJS)
+
 # Include QMSI sys.mk, which returns SYS objects in the OBJECTS variable.
 # sys.mk expects BASE_DIR to point to QMSI sources and APP_DIR to the 2nd-stage
 # bootloader directory (the one in which this file is).
 # TODO: try to get rid of this dependency from QMSI sources
 BASE_DIR = $(QMSI_SRC_DIR)
 include $(QMSI_SRC_DIR)/sys/sys.mk
+
+ifeq ($(ENABLE_FIRMWARE_MANAGER),usb)
 include $(BASE_DIR)/usb/usb_stack.mk
+endif
 
 2ND_STAGE_OBJS += $(OBJECTS)
+
+# Add relevant suffixes to APP_NAME
+APP_NAME := $(APP_NAME)$(FM_AUTH_SUFFIX)
 
 all: $(BIN_FILE)
 
 ### Build C files in APP_DIR
-$(2ND_STAGE_BUILD_DIR)/$(OBJ)/%.o: $(APP_DIR)/%.c qmsi
-	$(call mkdir, $(2ND_STAGE_BUILD_DIR)/$(OBJ))
+$(2ND_STAGE_OBJ_DIR)/%.o: $(APP_DIR)/%.c qmsi
+	$(call mkdir, $(2ND_STAGE_OBJ_DIR))
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 ### Link object files into APP ELF
@@ -88,12 +117,11 @@ $(BIN_FILE): $(LINKER_FILE) $(2ND_STAGE_OBJS) qmsi
 	$(LD) $(LDFLAGS) -Xlinker -T$(LINKER_FILE) \
 		-Xlinker -A$(OUTPUT_ARCH) \
 		-Xlinker --oformat$(OUTPUT_FORMAT) \
-		-Xlinker -Map=$(2ND_STAGE_BUILD_DIR)/$(OBJ)/$(APP_NAME).map \
-		-o $(2ND_STAGE_BUILD_DIR)/$(OBJ)/$(APP_NAME).elf \
-							$(2ND_STAGE_OBJS) \
+		-Xlinker -Map=$(2ND_STAGE_OBJ_DIR)/$(APP_NAME).map \
+		-o $(2ND_STAGE_OBJ_DIR)/$(APP_NAME).elf $(2ND_STAGE_OBJS) \
 		-Xlinker --start-group $(LDLIBS) -Xlinker --end-group
-	$(SIZE) $(2ND_STAGE_BUILD_DIR)/$(OBJ)/$(APP_NAME).elf
-	$(OBJCOPY) -O binary $(2ND_STAGE_BUILD_DIR)/$(OBJ)/$(APP_NAME).elf $@
+	$(SIZE) $(2ND_STAGE_OBJ_DIR)/$(APP_NAME).elf
+	$(OBJCOPY) -O binary $(2ND_STAGE_OBJ_DIR)/$(APP_NAME).elf $@
 
 qmsi:
-	$(MAKE) -C $(QMSI_SRC_DIR) libqmsi SOC=$(SOC) TARGET=$(TARGET)
+	$(MAKE) -C $(QMSI_SRC_DIR) libqmsi SOC=$(SOC) TARGET=$(TARGET) BUILD=$(QMSI_BUILD)

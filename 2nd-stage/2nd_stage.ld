@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Intel Corporation
+ * Copyright (c) 2017, Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,10 +35,11 @@ MEMORY
 	bl_data (r)	: ORIGIN = 0x4002F000, LENGTH = 4K
 	flash1 (r)	: ORIGIN = 0x40030000, LENGTH = 172K
 	bl_2nd_stage (r): ORIGIN = 0x4005b000, LENGTH = 20K
-	/* Place IDT at the bottom of SRAM, 68 gate wide */
-	esram_idt (rw)	: ORIGIN = 0xA800A000, LENGTH = 0x220
-	esram (rw)	: ORIGIN = 0xA800A220, LENGTH = 40K - 1K - 0x220
-	stack (rw)	: ORIGIN = 0xA8013C00, LENGTH = 1K
+	esram (rw)	: ORIGIN = 0xA800A000, LENGTH = 40K - 1K - 0x220
+	stack (rw)	: ORIGIN = 0xA80139E0, LENGTH = 1K - 0x4 - 0x20
+	esram_idt (rw)	: ORIGIN = 0xA8013DBC, LENGTH = 0x220
+	esram_restore_info (rw) : ORIGIN = 0xA8013FDC, LENGTH = 0x4
+	esram_gdt (rw)  : ORIGIN = 0xA8013FE0, LENGTH = 0x20
 }
 
 /* IDT definition */
@@ -83,6 +84,7 @@ SECTIONS
 	__data_size = SIZEOF(.data);
 	__bss_start = ADDR(.bss);
 	__bss_end = __bss_start + SIZEOF(.bss);
+	__bss_size = SIZEOF(.bss);
 
 	/* Heap */
 	__heap = .;

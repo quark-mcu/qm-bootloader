@@ -17,46 +17,74 @@ FLOW
      - Move to 32bit protected mode.
      - Enable cache  [Quark SE only].
 
-#. Resume from sleep: [Compile option: ``ENABLE_RESTORE_CONTEXT=1``]
-    - Resume application execution if the device was put into sleep mode. A
-      soft reboot is performed when a device comes out of sleep mode. The
-      bootloader checks if the ``GPS1`` sticky register is set and perform a
-      jump to the address stored in ``GPS1``.
+#. Check resume from sleep condition: [Quark SE only; compile option: ``ENABLE_RESTORE_CONTEXT=1``]
+     - Resume application execution if the device was put into sleep mode. A
+       soft reboot is performed when a device comes out of sleep mode. The
+       bootloader checks if the 'restore bit' of ``GPS0`` sticky register is
+       set.
+
+         + ['restore bit' set]
+             * Set up security hardening:
+                 - Enable flash write protection. [Compile option: ``ENABLE_FLASH_WRITE_PROTECTION=1``]
+                 - Set-up BL-Data FPR (``FPR 0``).
+                 - Set-up IDT/GDT MPR (``MPR 0``).
+             * Jump to the restored address stored in SRAM.
+         + ['restore bit' not set]
+                * Continue normal boot.
 
 #. Set-up primary peripherals and registers:
      - Stack pointer set-up
      - RAM set-up
      - Power set-up
-     - Clock set-up: check if trim codes are stored in flash; compute trim
-       codes and store them in flash if no trim codes were found.
+     - Clock set-up
 
-#. JTAG probe hook:
+#. Check for JTAG probe:
      - The bootloader checks if the JTAG_PROBE_PIN is asserted (grounded) and,
        if so, it waits until the pin is de-asserted (ungrounded). This is used
        to unbrick a device with firmware that is preventing JTAG from working
        correctly.
 
+#. Initialize / sanitize Bootloader Data (BL-Data):
+     - The bootloader checks if BL-Data is blank or corrupted:
+         + [BL-Data blank]
+             * Initialize BL-Data (including trim-code computation).
+         + [One copy of BL-Data corrupted]
+             * Recover BL-Data using valid copy.
+         + [Both copies corrupted]
+             * Enter infinite loop (unrecoverable error).
+     - Sanitize partitions:
+         + Check for partition marked as 'inconsistent' and erase them.
+
 #. Set-up secondary peripherals:
      #. IRQ set-up
      #. IDT set-up
-     #. Set-up interrupt controller
+     #. Enable interrupts
 
-#. Configure flash controller(s): [Compile option: ``ENABLE_FIRMWARE_MANAGER=[uart|2nd-stage]``]
-     - Configure flash partition 0.
-     - Configure flash partition 1 if the SoC is Quark SE.
+#. Set memory violation policy:
+     - Configure memory violation policy (for both RAM and flash) to trigger a
+       warm reset.
 
-#. Sanitize bootloader data: [Compile option: ``ENABLE_FIRMWARE_MANAGER=[uart|2nd-stage]``]
-     - The bootloader checks if the meta-data partitions are not corrupted and
-       fixes them if needed.
+#. Check if Firmware Management (FM) is requested: [Compile option: ``ENABLE_FIRMWARE_MANAGER=[uart|2nd-stage]``]
+     - The bootloader check if the FM pin is asserted (grounded) or the FM bit
+       of sticky register ``GPS0`` is set; if so, it enters FM mode.
 
-#. Start Firmware Manager: [Compile option: ``ENABLE_FIRMWARE_MANAGER=[uart|2nd-stage]``]
-     - The bootloader goes into Firmware Management (FM) mode if the FM pin is
-       asserted (grounded) or the FM sticky bit is set.
+#. Check if x86 application is present:
+     - Check if the first 4 bytes of the x86 partition are different from
+       0xffffffff (i.e., an application is present):
 
-#. Start x86 application:
-     - Start the x86 application if present (the first double word is different
-       from 0xffffffff).
+         + [Application present]
+             * Set up security hardening:
+                 - Enable flash write protection. [Compile option: ``ENABLE_FLASH_WRITE_PROTECTION=1``]
+                 - Set-up BL-Data FPR (``FPR 0``).
+                 - Set-up IDT/GDT MPR (``MPR 0``).
+             * Clean-up RAM to prevent leaking private data to application:
+                 - Clear x86 portion of RAM.
+                 - Reset stack pointer.
+             * Start x86 application:
+                 - Jump to the application entry point.
+         + [Application not present]
+             * Start FM mode. [Compile option: ``ENABLE_FIRMWARE_MANAGER=[uart|2nd-stage]``]
 
-#. Sleep:
-      - When the x86 application returns, the bootloader halts the x86 core
-        (while leaving the state of the Sensor Subsystem unmodified).
+#. Enter infinite loop:
+     - If no x86 application is present and FM is not enabled, or the
+       application returns, the bootloader enters an infinite loop.

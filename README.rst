@@ -40,10 +40,6 @@ External Dependencies
 * The toolchain is provided within the ISSM package or
   `standalone tarballs <https://software.intel.com/en-us/articles/issm-toolchain-only-download>`_.
 
-
-More info about dependencies can be found in the
-`bootloader resources <doc/boot_resources.rst>`__ file.
-
 License
 *******
 
@@ -72,7 +68,7 @@ All Documentation about the bootloader can be found in the doc folder:
 - `Bootloader flow      <doc/boot_flow.rst>`__
 - `Firmware Manager User Guide`_
 - `Firmware Manager Overview`_
-- `Authenticated Firmware Upgrade`_
+- `Secure Programmer's Guide`_
 
 Building
 ********
@@ -84,22 +80,23 @@ Make sure you have downloaded the toolchain as described in
 Environment
 ===========
 
-You must first set the IAMCU_TOOLCHAIN_DIR environment variable.
-Assuming the toolchain was unpacked into *$HOME/issm_2016/* and
-that you would find *i586-intel-elfiamcu-gcc* at
-*$HOME/issm_2016/tools/compiler/gcc-ia/5.2.1/bin*, the variable can be set with:
+You must first set the ``IAMCU_TOOLCHAIN_DIR`` environment variable.
+Assuming the toolchain was unpacked into ``$HOME/issm_2017/`` and that you
+would find ``i586-intel-elfiamcu-gcc`` at
+``$HOME/issm_2017/tools/compiler/gcc-ia/5.2.1/bin``, the variable can be set
+with:
 
-``export IAMCU_TOOLCHAIN_DIR=$HOME/issm_2016/tools/compiler/gcc-ia/5.2.1/bin``
+``export IAMCU_TOOLCHAIN_DIR=$HOME/issm_2017/tools/compiler/gcc-ia/5.2.1/bin``
 
-QMSI sources are needed to build bootloader code. The QMSI_SRC_DIR environment
-variable must point to the QMSI folder, for instance:
+QMSI sources are needed to build bootloader code. The ``QMSI_SRC_DIR``
+environment variable must point to the QMSI folder, for instance:
 
 ``export QMSI_SRC_DIR=$HOME/qmsi``
 
 If such a variable is not defined, the bootloader expects QMSI folder to be
 named ``qmsi`` and be a sibling folder of the bootloader one.
 
-To use the "make flash" command, the $QM_BOOTLOADER_DIR environment variable
+To use the "make flash" command, the ``QM_BOOTLOADER_DIR`` environment variable
 should be set.
 
 ``export QM_BOOTLOADER_DIR=$HOME/bootloader``
@@ -147,35 +144,34 @@ by QMSI in the ss_init.h header file.
 Firmware Management
 -------------------
 
-ENABLE_FIRMWARE_MANAGER is used to enable firmware management inside of the
-bootloader.
+ENABLE_FIRMWARE_MANAGER is used to control the firmware management feature of
+the bootloader.
 
 To disable firmware manager:
 
 ``make ENABLE_FIRMWARE_MANAGER=none``
 
-To enable firmware manager over uart:
+To enable firmware manager over UART:
 
 ``make ENABLE_FIRMWARE_MANAGER=uart``
 
-To enable firmware manager over usb:
+To enable firmware manager over USB:
 
 ``make ENABLE_FIRMWARE_MANAGER=2nd-stage``
 
-In order to use the firmware manager over usb a 2nd-stage bootloader must be
-flashed, more information about this can be found in `Authenticated Firmware
-Upgrade`_.
+In order to use the firmware manager over USB a 2nd-stage bootloader must also
+be flashed (see `Firmware Manager User Guide`_ for more information).
 
-By default, firmware management mode is enabled over uart.
+By default, firmware management mode is enabled over UART.
 
-More info on building and flashing an application using the firmware management
-mode can be found in the `Firmware Manager User Guide`_.
+More information on building and flashing an application using the firmware
+management mode can be found in the `Firmware Manager User Guide`_.
 
 Authenticated Firmware Management
 ---------------------------------
 
 When firmware management is enabled ENABLE_FIRMWARE_MANAGEMENT_AUTH can be
-used to enable authentication in the firmware manager.
+used to enable/disable authentication in the firmware manager.
 
 To enable authentication:
 
@@ -187,20 +183,17 @@ To disable authentication:
 
 Firmware manager authentication is enabled by default.
 
-More information on authenticated firmware management can be found in
-'Authenticated Firmware Upgrade'_.
-
 Return from sleep
 -----------------
 
 The Quark SE has support for sleep states that power off the CPU. When a
 wake event happens, the CPU starts over from the reset vector as in a normal
 power on. To do so, build both the bootloader and libqmsi with
-'ENABLE_RESTORE_CONTEXT=1'.
+``ENABLE_RESTORE_CONTEXT=1``.
 
 ``make SOC=quark_se ENABLE_RESTORE_CONTEXT=1``
 
-The context of the Quark D2000 is restored by the hw. For that reason,
+The context of the Quark D2000 is restored by the hardware. For that reason,
 the ENABLE_RESTORE_CONTEXT option has no effect on Quark D2000 SoC.
 
 By default, context save and restore management is enabled on Quark SE.
@@ -211,9 +204,11 @@ Flash write protection
 By default the bootloader write-protects all the SoC flash memory to avoid any
 possible modification of the firmware.
 
-It's possible to deactivate this feature by compiling the bootloader with
-'ENABLE_FLASH_WRITE_PROTECTION=0'. This, however, will render the SoC vulnerable
-to malware gaining access to the firmware and overwriting it.
+It is possible to deactivate this feature by compiling the bootloader with
+``ENABLE_FLASH_WRITE_PROTECTION=0``. This, however, will render the SoC
+vulnerable to malware gaining access to the firmware and overwriting it.
+
+See the `Secure Programmer's Guide`_ for more information.
 
 Flashing
 ========
@@ -221,13 +216,13 @@ Flashing
 The bootloader must be flashed on the OTP ROM flash region. Before flashing a
 new bootloader, a mass erase should be performed.
 
-For flashing the board OpenOCD must be used. You can optionally use gdb
+For flashing the board, OpenOCD must be used. You can optionally use gdb
 as a front-end for OpenOCD as described below.
 
-Assuming the toolchain was unpacked into *$HOME/issm_2016/*, this can be
+Assuming the toolchain was unpacked into ``$HOME/issm_2017/``, this can be
 done with:
 
-``$ cd $HOME/issm_2016/tools/debugger/openocd``
+``$ cd $HOME/issm_2017/tools/debugger/openocd``
 
 For D2000, start OpenOCD with the following command:
 
@@ -266,4 +261,4 @@ device:
 .. Links
 .. _`Firmware Manager User Guide`: doc/fw-manager-user-guide.rst
 .. _`Firmware Manager Overview`: doc/fw-manager-overview.rst
-.. _`Authenticated Firmware Upgrade`: doc/authenticated_firmware_upgrade
+.. _`Secure Programmer's Guide`: doc/secure-programmers-guide.rst
